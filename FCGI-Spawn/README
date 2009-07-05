@@ -1,0 +1,70 @@
+General Information
+-------------------
+
+FCGI-Spawn is extension of FCGI-ProcManager for those who need not ( almost )
+to write any of his/her own Perl code.  This is the quote of
+FCGI-ProcManager's explanation:
+
+"FCGI-ProcManager is a process manager for FCGI.  By implementing the
+process manager in perl, we can more finely tune FastCGI performance, and 
+we can take CPU and memory advantages of fast forks and copy-on-write UNIX
+process management characteristics."
+
+But unlike this, the FCGI-Spawn is intended for those who need to have the
+FCGI daemon with those specifications:
+- communicate via given UNIX local socket
+With UNIX virtualization environments like jail(8) the socket name and its
+desired file mode is the stuff you posess for communication betweeen Web
+server ( FastCGI requester ) and FastCGI daemon.
+- execute any given file in FastCGI environment
+File name to execute is given with FastCGI protocol
+- fork with the given number of processes and share the compiled modules code
+  in common memory areas with copy-on-write facilities.
+
+There were no quick recipe yet, so i gave myself a try to implement one. :-)
+
+Installation
+------------
+
+FCGI-Spawn is expected to compile and run on the same systems range as
+FCGI-ProcManager is.
+
+To build,
+
+  perl Makefile.PL
+  make all
+  make install
+
+Usage
+-----
+In order to use this process manager, you should create an executable Perl
+file expected to being launched as a daemon. I recommend the daemontools
+package, so it will be called `run' in this case. Also, you should configure
+the UNIX system user and/or group to launch the daemon with. `To configure' I
+mean both the environment and ulimit(3). And, the target daemon user should be
+able to create, and communicate via the socket set as an argument for
+FCGI-Spawn instance creation ( the new() method ). And, hold in mind that the
+FactCGI requester ( the Web server ) should be able to operate via this
+socket, so after creation it should be writable by Web server user. To satisfy
+this, I recommend the FCGI-Spawn daemon user be included into the same group
+as Web server and socket's permissions should be 0660.
+I tried to organize the request loop operations with using the pm_pre_dispatch() / pm_post_dispatch() 
+but could not keep in frames of its assumptions.
+Refer for more usage details to 
+perldoc FCGI::Spawn
+perldoc FCGI::ProcManager
+
+
+Copyright
+---------
+Copyright (c) 2006-2008, Peter Vereshagin <peter@vereshagin.org>
+
+
+Disclaimer
+----------
+
+This library is free software released "AS IS WITH ALL FAULTS"
+and WITHOUT ANY WARRANTIES under the terms of the GNU Lesser
+General Public License, Version 2.1, a copy of which can be
+found in the "COPYING" file of this distribution.
+
