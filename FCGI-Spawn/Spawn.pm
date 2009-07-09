@@ -273,7 +273,7 @@ is able to be set by the "callout" initial parameter.
 
 =head2 The Bugs
 
-Yes.
+Fresh bugs, fixes and features are to be available on git://github.com/petr999/fcgi-spawn.git .
 
 =head2 Tested Environments
 
@@ -308,7 +308,6 @@ it's way hard to adopt to CGI::Fast's BEGIN block. Gonna skip it out. Should be 
 =item * DBI
 
 Should be nice to overload DBI like the Apache::DBI does.
-
 
 =item * Adoptable forks number
 

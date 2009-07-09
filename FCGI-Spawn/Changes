@@ -6,3 +6,5 @@ Revision history for Perl extension FCGI::Spawn.
 	- several bugfixes before 0.2, special thnx to Yuri @ Reunion
 0.13  Sun Aug 31 15:27:35 2008 SAMST
 	- fixed major POST processing bug, added more parameters for considerability about inclusion and execution ways
+0.14  Thu Jul  9 08:54:25 SAMST 2009
+	- added clean_inc_subnamespace feature, doc fixes
