@@ -1,4 +1,4 @@
-Revision history for Perl extension FCGI::Spawn.
+Revision history for Perl module FCGI::Spawn.
 
 0.1  don't remember when in 2007
 	- initial release
@@ -8,3 +8,5 @@ Revision history for Perl extension FCGI::Spawn.
 	- fixed major POST processing bug, added more parameters for considerability about inclusion and execution ways
 0.14  Thu Jul  9 08:54:25 SAMST 2009
 	- added clean_inc_subnamespace feature, doc fixes
+0.15  Thu Oct  1 23:02:56 SAMST 2009
+	- added stats feature, globalized $fcgi request variable, default callout is do() now.

@@ -16,7 +16,7 @@ WriteMakefile
    VERSION_FROM => 'Spawn.pm',   # finds $VERSION
    DISTNAME     => 'FCGI-Spawn',
    ($] >= 5.005 ?
-    (	ABSTRACT  => 'A perl-based FastCGI process manager, convinient for implementation by system administrators',
+    (	ABSTRACT  => 'A perl-based FastCGI process manager, convinient for admins and users',
      	AUTHOR    => 'Peter V. Vereshagin (peter@vereshagin.org)') : (),
 		),
    	dist        => { COMPRESS => 'gzip', SUFFIX => 'gz', },

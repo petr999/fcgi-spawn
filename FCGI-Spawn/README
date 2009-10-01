@@ -12,14 +12,24 @@ process management characteristics."
 
 But unlike this, the FCGI-Spawn is intended for those who need to have the
 FCGI daemon with those specifications:
-- communicate via given UNIX local socket
-With UNIX virtualization environments like jail(8) the socket name and its
+- communicate via given UNIX local socket or TCP port
+With UNIX virtualization environments like FreeBSD's jail(8) the socket name and its
 desired file mode is the stuff you posess for communication betweeen Web
 server ( FastCGI requester ) and FastCGI daemon.
 - execute any given file in FastCGI environment
-File name to execute is given with FastCGI protocol
+File name to execute is given with FastCGI protocol, this is what the PHP
+does in FastCGI mode
 - fork with the given number of processes and share the compiled modules code
   in common memory areas with copy-on-write facilities.
+- limit the number of requests served by the same process
+Same as MaxRequests feature of Apache, especially wanted for Perl in sight of it never 
+returns allocated memory to OS. On a complex Perl applications, the memory allocation
+volume for particular porocess under load can grow up almost unpredictably. ;-)
+- reload the Perl module on every request if it has been changed from
+the moment it was loaded previously
+Useful for debugging and fixing code when put on production hosting, another 
+obiouse feature of PHP, including FastCGI mode. Absence of such a feature in
+other Perl runtime environments can get any Perl newcomer stuck.
 
 There were no quick recipe yet, so i gave myself a try to implement one. :-)
 

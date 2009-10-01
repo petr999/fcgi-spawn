@@ -2,7 +2,7 @@ package FCGI::Spawn;
 
 use vars qw($VERSION);
 BEGIN {
-  $VERSION = '0.14'; 
+  $VERSION = '0.15'; 
   $FCGI::Spawn::Default = 'FCGI::Spawn';
 }
 
@@ -18,7 +18,7 @@ Minimum unrecommended way to illustrate it working:
 	my $spawn = FCGI::Spawn->new();
 	$spawn -> spawn;
 
-Never put this in production use. This should be run as the web server's user id ( or another if umask isn't 022 ) and the web server should be configured to request its FastCGI on the default socket file name, the /tmp/spawner.sock. Consider to run as user other than web server's and setting up the proper sock_chmod/sock_chown parameters necessity.
+Never put this in production use. This should be run as the web server's user id ( or another if umask isn't 022 ) and the web server should be configured to request its FastCGI on the default socket file name, the /tmp/spawner.sock. Consider to run as user other than web server's and setting up the proper sock_chmod/sock_chown parameters necessity. In the case if you request via TCP care should be taken on network security like DMZ/VPN/firewalls setup instead of sock_* parameters.
 
 Tried to get know satisfaction with bugzilla... There's no place to dig out that Bugzilla doesn't work out with FastCGI other than Bugzilla's own Bugzilla though.
 
@@ -77,6 +77,8 @@ A few more notes:
 
 ** You should beware about CGI::Fast IS NOT included at the moment this module is being used, e. g. IS ABSENT in the %INC global hash. Because of that same reason.
 
+** CGI scripts must be tweaked to use $FCGI::Spawn::fcgi instead of new CGI or CGI->new. In other case they will not be able to process HTTP POST. Hope your code obfuscators are not that complex to allow such a tweak. ;-) At least it is obvious for FastCGI scripts to require FastCGI object if you use your application in any FastCGI environmanet.
+
 Thanks for understanding.
 
 =head2 Why daemontools?
@@ -100,7 +102,7 @@ With mod_fcgid, the compiled Perl code is not being shared among forks by far.
 
 The startup.pl providing the memory sharing among forks is aimed to be run as root, at least when you need to listen binded to ports numbered less than 1024, for example, 80. And, the root user ( the human ) is often too busy to check if that massive code is secure enough to be run as root system user ( the effective UID ) Thus, it's no much deal to accelerate Perl on mod_perl steroids if the startup.pl includes rather small code for reuse.
 
-Root needed to recompile the Perl sources, at least with the useful Registry handler.
+Root is needed to recompile the Perl sources, at least with the useful Registry handler. It is obvious to gracefully restart Apache once per N minutes and this is what several hosting panel use to do but it is not convinient to debug code that is migrated from developer's hosting to production's  as it is needed to be recompiled on webmaster's demand that use to happen to be no sense for server's admin. And, with no ( often proprietary ) hosting panel software onboard, Apache doesn't even gracefully restart on a regular basis without special admin care taken at server setup time. On the uptime had gone till the need of restart after launch it is not an admin favor to do this, even gracefully. Apache::Reload can save from this but it's not a production feature, too.
 
 =item * File serving speed loss
 
@@ -126,7 +128,7 @@ Persistent connections feature makes it slightly faster for skip connect to DB s
 
 =item * Apache::Request
 
-HTTP input promises to be much more effective than the CGI.pm's one, used in CGI::Fast, too.
+HTTP input promises to be much more effective than the CGI.pm's one, used in CGI::Fast, too. You may need also more information about request, like full incoming headers, too. Those are obvious to be contained in the Apache internal structures rather than outsourced with application protocol from web server.
 
 =back
 
@@ -136,6 +138,8 @@ It seems to require too much in Perl knowledge from regular system administrator
 
 =head1 DESCRIPTION
 
+The overall idea is to make Perl server-side scripts as convinient for novice and server administrators as PHP in FastCGI mode.
+
 FCGI::Spawn is used to serve as a FastCGI process manager. Besides  the features the FCGI::ProcManager posess itself, the FCGI::Spawn is targeted as web server admin understandable instance for building the own fastcgi server with copy-on-write memory sharing among forks and with single input parameters like processes number and maximum requests per fork.
 
 Another thing to mention is that it is able to execute any file pointed by Web server ( FastCGI requester ). So we have the daemon that is hot ready for hosting providing :-)
@@ -144,7 +148,7 @@ The definitive care is taken in FCGI::Spawn on security. Besides the inode setti
 
 The aforementioned max_requests parameter takes also care about the performance to avoid forks' memory leaks to consume all the RAM accounted on your hardware.
 
-For shared hosting it is assumed that system administrator controls the process manager daemon script contents with those user hardware consumption limits and executes it with a user's credentials. E. g., the user should be able, to send signal to the daemon to initiate graceful restart on his/her demand ( this is yet to be done ) or change the settings those administrator can specifically allow in the daemon starter script without restart ( both of those features are about to be done in the future ). For example, user may want to recompile the own sources and quickly change the clean_inc_hash for this.
+For shared hosting it is assumed that system administrator controls the process manager daemon script contents with those user hardware consumption limits and executes it with a user's credentials. E. g., the user should be able to send signal to the daemon to initiate graceful restart on his/her demand ( this is yet to be done ) or change the settings those administrator can specifically allow in the daemon starter script without restart ( both of those features are about to be done in the future ). For example, user may want to recompile the own sources and quickly change the clean_inc_hash for this.
 
 The call stack lets you set up your own code reference for your scripts execution.  
 
@@ -169,11 +173,20 @@ The parameters are:
 
 =item * $ENV{FCGI_SOCKET_PATH} 
 
-should be set before module compilation, to know where the socket resides. Default: /tmp/spawner.sock.
+should be set before module compilation, to know where the socket resides. Can be in the host::port or even :port notation for TCP, as FCGI's remote.fpl states. Default: /tmp/spawner.sock.
+
+You can set environment value with your shell like this:
+
+FCGI_SOCKET_PATH=/var/lib/fcgi.sock ./fcgi.pl
+
+or you can enclose it into the eval() like that:
+
+$ENV{FCGI_SOCKET_PATH}  = '/var/lib/fcgi.sock';
+eval( "use FCGI::Spawn;" ); die $@ if $@;
 
 =item * sock_chown 
 
-is the array reference which sets the parameters for chown() on newly created socket, when needed. Default: none.
+is the array reference which sets the parameters for chown() builtin on newly created socket, when needed. Default: none.
 
 =item * readchunk 
 
@@ -186,6 +199,14 @@ is the maximumum user's file size for the same. Default: 100000.
 =item * max_requests 
 
 is the maximum requests number served by every separate fork. Default: 20.
+
+=item * stats 
+
+Whether to do or do not the stat() on every file on the %INC to recompile on change by mean of removal from %INC. Default: 1.
+
+=item * stats_policy 
+
+Array reference that defines what kind of changes on the every module file stat()'s change to track and in what order. Default: FCGI::Spawn::statnames_to_policy( 'mtime' ) ( statnames_to_policy function is described below ).
 
 =item * clean_inc_hash 
 
@@ -223,7 +244,11 @@ is the code reference to include the user's file by your own. Its input paramete
 		eval $$plsrc;
 	}
 
-using this as an example, one can provide his/her own inclusion stuff.
+using this as an example, one can provide his/her own inclusion stuff. Default is to use trivial do() builtin this way:
+
+  sub{  
+    do shift;
+  }
 
 =back
 
@@ -239,7 +264,11 @@ performs user's code execution. Isolates the max_requests and current requests c
 
 =head2 plsrc
 
-Static function. Reads the supplied parameter up to "maxlength" bytes size chunked by "readchunk" bufer size and returns string reference. Used by default callout.
+Static function. Reads the supplied parameter up to "maxlength" bytes size chunked by "readchunk" bufer size and returns string reference. Deprecated and will be removed in future versions.
+
+=head2 statnames_to_policy( 'mtime', 'ctime', ... );
+
+Static function. Convert the list of file inode attributes' names checked by stat() builtin to the list of numbers for it described in the perldoc -f stat .  In the case if the special word 'all' if met on the list, all the attributes are checked besides 'atime' (8). Also, you can define the order in which the stats are checked to reload perl modules: if the change is met, no further checks of this list for particular module on particular request are made as a decision to recompile that source is already taken. This is the convionient way to define the modules reload policy, the 'stat_policy' object property, among with the need in modules' reload itself by the 'stats' property checked as boolean only.
 
 =head1 Thanks, Bugs, TODOs, Pros and Contras ( The Etcetera )
 
@@ -249,25 +278,25 @@ I had many debates and considerations about inclusion the end user scripts. Here
 
 =over
 
-=item do()
+=item the default is to: do()
 
-should be the best but not verbose enough and very definitive about exceptions. But the major in this is that it updates the %INC so the user's changes on his/her requested Perl source file will not be recompiled every time. Of course you can clean_inc_hash but YMMV about %INC modification.
+should be the best but not verbose enough and very definitive about exceptions. But the major in this is that it isolates $fcgi request lexical variable, so it is made global of this package.
 
 =item require()
 
-makes the every fork failed to incorporate the user's source to die which is painful under heavy load.
+makes the every fork failed to incorporate the user's source to die() which is painful under heavy load.
 
 =item system() or exec()
 
 makes your FastCGI server to act as the simple CGI, except POST input is unavailable. Useful for debugging.
 
-=item the default anonymous sub
+=item  Mentioned plsrc() and eval() sub
 
-reads user's source sized up to "maxlength" by buffers chunks of "readchunk" initial parameters. And, eval()'s it.
+reads user's source sized up to "maxlength" by buffers chunks of "readchunk" initial parameters. And, eval()'s it. Deprecated and will be removed in future versions. One can write it by self defining the:
 
 =item your own CODE ref
 
-is able to be set by the "callout" initial parameter.
+is able to be set by the "callout" initial parameter and/or "callout" object property.
 
 =back
 
@@ -288,8 +317,7 @@ Troubles met on passing %ENV variables responsible for CGI input, most of them c
 
 =item * Win32 and TCP sockets
 
-No surprise, Cygwin rocks. No mistake on TCP, Nginx doesn't handle Cygwin's local sockets. But it was my wrong documented TODO about TCP on 0.13 version, FCGI::Spawn does work out there its regular way ( as FCGI_* environment variables are set in proper way, on behalf of CGI::Fast ).
-No ActiveState Perl can do this, sorry --- as it can't FCGI::ProcManager which is a must. And, surprise, the response time difference over CGI is dramatically better because of it's way more expensive on resources to launch a new process on this platform.
+No surprise, Cygwin rocks. No ActiveState Perl can do this, sorry --- as it can't FCGI::ProcManager which is a must. And, surprise, the response time difference over CGI is dramatically better because of it's way more expensive on resources to launch a new process on this platform ( Cygwin emulates fork()s with native threads those are much faster ).
 
 =back
 
@@ -303,7 +331,7 @@ The UNIX signals processing is on its way in consequent releases. At least we sh
 
 =item * CGI
 
-it's way hard to adopt to CGI::Fast's BEGIN block. Gonna skip it out. Should be even cooler to replace CGI.pm with XS alternate.
+it's way hard to adopt to CGI::Fast's BEGIN block. Gonna skip it out with CGI::Minimal. Should be even cooler to replace CGI.pm with XS alternate.
 
 =item * DBI
 
@@ -315,7 +343,39 @@ Should be nice to variate the n_processes due to the average system load, rest o
 
 =item * RC (init) script 
 
-FCGI::ProcManager is able to put its pid file where you should need it. RC and SMF and packages are the "Right Thing" (tm). :-)
+FCGI::ProcManager is able to put its pid file where you should need it. RC and/or SMF startup scripts  and packages for the particular OS are the "Right Thing" (tm). :-)
+
+=item * Frameworks compliance
+
+Bring FCGI::ProcManager improvements like max_requests into complex applications with their own daemons like Catalyst.
+
+=item * Lightweight cache for objects that CGI scripts may use.
+
+Cache things those are not necessary to be reloaded on every request even if it is to be done with CGI. Those should be objects like XSLT processors created from the permanenmtly stored XSL stylesheet file so the program can remain CGI-compliant as such a cache is not mandatory but can be enhanced with this feature to get more performance under FCGI::Spawn with no need in additional daemons like Memcached and requirement for them to be able to keep native objects ( which the XML/XSL document and XSLT processor are).
+
+=item * CGI.pm alterbative to get rid of CGI programs patching
+
+it's not always allowed to change the CGI program source so care should be taken of different CGI.pm that takes $FCGI::Spawn::fcgi when it's necessary.
+
+=item * Namespace cleaning
+
+Service should take care of cleaning the variables from namespaces other than %main:: . This is the only thing that is left to do to get Bugzilla with FastCGI that is officially not possible.
+
+=item * Test with other HTTP servers ( FastCGI requesters )
+
+Any aside help would be appreciated.
+
+=item * Hosting panels integration
+
+Free software forking/branching is an obvious stuff, hosting panels are not exclusion, at least those of them which are free software. I'm absolutely sure CGI speedup is wanted by clients as well as unloading the hosting server's CPUs from Perl compilation/exec on every request for servers' administrators.
+
+=item * Debugging
+
+On a developer's machine it is nothing impossible to make debugging the same standard way as perldoc perldebug states, especially with n_processes => 0. It's not yet in because the CGI::Fast redefines STD* handles upon every request. It makes things easy but should be more tweakable.
+
+=item * Compile the modules cache on the first request
+
+Should be obvious for developer's host to keep from compiling each and every module on startup if it is known that developer will take on different tasks through all of the uptime. But during the uptime ( work hours ) YMMV about the need in FCGI::Spawn-served application(s) and they can appear to be used.  So the idea is to evaluate some modules inclusion upon the first request, perform it without fork(), and share the compile cache later among forks. This will save some memory on a developer's machine with no need to change daemon settings and start it again.
 
 =back
 
@@ -339,6 +399,11 @@ use warnings;
 
 use File::Basename;
 use FCGI::ProcManager;
+use base qw/Exporter/;
+
+our @EXPORT_OK = qw/statnames_to_policy/;
+
+our $fcgi;
 
 BEGIN {
 	die "CGI::Fast made its own BEGIN already!" if defined $INC{'CGI/Fast.pm'};
@@ -374,11 +439,23 @@ my $defaults = {
 	clean_main_space	=> 0,
 	clean_inc_subnamespace	=> [],
 	callout	=>	sub{
-		my( $sn, $fcgi ) = @_;
-		my $plsrc=plsrc $sn;
-		eval $$plsrc;
+		do shift;
+		#	my( $sn, $fcgi ) = @_;
+		#	my $plsrc=plsrc $sn;
+		#	eval $$plsrc;
 	},
+	stats	=> 1,
+	stats_policy	=> statnames_to_policy( 'mtime' ),
+	state	=> {},
 };
+
+sub statnames_to_policy {
+	my %policies = qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6 size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/;
+	#	grep(  { $_ eq 'all' } @_ )
+	#	?	[ 1..7, 9..12 ]
+	#	: 
+	[ map( { $policies{ $_ } } @_ ) ];
+}
 
 sub new {
 	my $class = shift;
@@ -438,16 +515,22 @@ sub clean_inc_particular {
 
 sub spawn {
 	my $this = shift;
-	my( $proc_manager, $max_requests ) = map { $this -> {$_} } qw/proc_manager max_requests/;
-	my %fcgi_spawn_main = %main:: if $this->{clean_main_space}; # remember global vars set for cleaning in loop
-	my %fcgi_spawn_inc = %INC if $this->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-	my $req_count=1;
-	while( my $fcgi = new CGI::Fast ) {
+	my( $proc_manager, $max_requests, ) = map { $this -> {$_} } qw/proc_manager max_requests/;
+	$this->set_state( 'fcgi_spawn_main', { %main:: } ) if $this->{clean_main_space}; # remember global vars set for cleaning in loop
+	$this->set_state( 'fcgi_spawn_inc', { %INC } ) if $this->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
+	$this->set_state_stats if $this->{stats}; # remember %INC to wipe out changes in loop
+	my $req_count=0;
+	while( $fcgi = new CGI::Fast ) {
  		$proc_manager->pm_pre_dispatch();
 		my $sn = $ENV{SCRIPT_FILENAME};
 		my $dn = dirname $sn;
 		my $bn = basename $sn;
 		chdir $dn;
+		if( $req_count ){
+
+			$this->prespawn_dispatch( $fcgi, $sn );
+
+		}
 		# Commented code is real sugar for nerds ;)
 		# map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
   	#  if $ENV{ 'REQUEST_METHOD' } eq 'POST';	# for nginx-0.5
@@ -457,18 +540,82 @@ sub spawn {
 		$this->callout( $sn, $fcgi );
 		$req_count ++;
 		exit if $req_count > $max_requests;
+		$this->postspawn_dispatch;
  		$proc_manager->pm_post_dispatch();
-		$fcgi->initialize_globals; # to get rid of CGI::save_request consequences
-		delete $INC{ $sn } if exists( $INC{ $sn } ) and $this->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
-		#map { delete $INC{ $_ } if not exists $fcgi_spawn_inc{ $_ } } keys %INC 
-		%INC = %fcgi_spawn_inc if $this->{clean_inc_hash} == 2; #if %INC change is unwanted at all
-		$this->clean_inc_particular;
-		if( $this->{clean_main_space} ){ # actual cleaning vars
-			foreach ( keys %main:: ){ 
-				delete $main::{ $_ } unless defined $fcgi_spawn_main{ $_ } ;
-			}
+	}
+}
+sub get_inc_stats{
+	my %inc_state = map { my $stat = [ stat $_ ]; 
+	#	undef $stat->[8];  
+		$_ => $stat;  
+	} values %INC;
+	return \%inc_state;
+}
+sub set_state_stats {
+	my $this = shift;
+	my $stats = get_inc_stats;
+	$this->set_state( 'stats', $stats );
+}
+sub delete_inc_by_value{
+	my $module = shift;
+	my @keys_arr = keys %INC;
+	foreach my $key ( @keys_arr ){
+		my $value = $INC{ $key };
+		delete $INC{ $key } if $value eq $module;
+	}
+}
+sub postspawn_dispatch {
+	my $this = shift;
+	$this->set_state_stats;
+}
+sub prespawn_dispatch {
+	my ( $this, $fcgi, $sn ) = @_;
+	$fcgi->initialize_globals; # to get rid of CGI::save_request consequences
+	delete $INC{ $sn } if exists( $INC{ $sn } ) and $this->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
+	#map { delete $INC{ $_ } if not exists $fcgi_spawn_inc{ $_ } } keys %INC 
+	if( $this->{clean_inc_hash} == 2 ){ #if %INC change is unwanted at all
+		my $fcgi_spawn_inc = $this->get_state( 'fcgi_spawn_inc' );
+		%INC = %$fcgi_spawn_inc ;
+	}
+	$this->clean_inc_particular;
+	$this->clean_inc_modified if $this->{ stats };
+	if( $this->{clean_main_space} ){ # actual cleaning vars
+		foreach ( keys %main:: ){ 
+			delete $main::{ $_ } unless $this->defined_state( 'fcgi_spawn_main', $_ ) ;
 		}
 	}
+}
+sub clean_inc_modified {
+	my $this = shift;
+	my $old_stats = $this->get_state( 'stats' );
+	my $new_stats = get_inc_stats;
+	my $policy = $this->{ stats_policy };
+	foreach my $module ( keys %$new_stats ){
+		my $modified = 0;
+		if( defined $old_stats->{ $module } ){
+			my $new_stat = $new_stats->{ $module };
+			my $old_stat = $old_stats->{ $module };
+			foreach my $i ( @$policy ){
+				my $new_element = $new_stat->[ $i ];
+				my $old_element = $old_stat->[ $i ];
+				$modified = 1 if $new_element != $old_element;
+				last if $modified;
+			} 
+		}
+		delete_inc_by_value( $module ) if $modified;
+	}
+}
+sub defined_state{
+	my( $this, $key ) = @_;
+	defined $this->{ state }->{ $key };
+}
+sub get_state {
+	my( $this, $key ) = @_;
+	$this->{ state }->{ $key };
+}
+sub set_state {
+	my( $this, $key, $val ) = @_;
+	$this->{ state }->{ $key } = $val;
 }
 
 1;
