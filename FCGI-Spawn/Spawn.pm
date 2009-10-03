@@ -482,7 +482,7 @@ This will save some memory on a developer's machine with no need to change daemo
 Happens on a developer's machine when the application server is not used for a some uptime's while.
 It is nothing impossible to free the memory for other applications on the same system.
 
-=item * Resource limiting
+=item * Resources limiting
 
 can be still done with daemontools or ulimit, but there are those specific realized in php, like the time_limit.
 Anyway, the memory_limit feature should be easy to make.
