@@ -304,7 +304,6 @@ You can use full file names, like this: 'path/required_lib.pl' for this argument
 
 As of high-load systems it is strongly discouraged that the hosting user ( who can happen to be a really bad programmer ) to control this parameter, as it can lead to the same as clean_inc_hash=2 and can steal server performance at the moment just unwanted for system administrator.
 ulimit is a good thing to keep from such a bothering too, but it's just not always sufficient alone. And, no ulimit on Cygwin by far.
-
 Default: empty.
 
 =item * callout 
@@ -557,9 +556,6 @@ my $defaults = {
 	clean_inc_subnamespace	=> [],
 	callout	=>	sub{
 		do shift;
-		#	my( $sn, $fcgi ) = @_;
-		#	my $plsrc=plsrc $sn;
-		#	eval $$plsrc;
 	},
 	stats	=> 1,
 	stats_policy	=> statnames_to_policy( 'mtime' ),
