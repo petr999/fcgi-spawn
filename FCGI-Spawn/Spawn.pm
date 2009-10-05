@@ -638,9 +638,7 @@ sub spawn {
 		my $dn = dirname $sn;
 		my $bn = basename $sn;
 		chdir $dn;
-		#if( $req_count ){
 			$this->prespawn_dispatch( $fcgi, $sn );
-		#}
 		# Commented code is real sugar for nerds ;)
 		# map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
   	#  if $ENV{ 'REQUEST_METHOD' } eq 'POST';	# for nginx-0.5
