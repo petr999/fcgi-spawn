@@ -493,7 +493,7 @@ Anyway, the memory_limit feature should be easy to make.
 
 Tar.gz at CPAN, as always.
 
-Sourceforge has git, too: git://fcgi-spawn.git.sourceforge.net/gitroot/fcgi-spawn/fcgi-spawn .
+Sourceforge has latest development snapshot: http://fcgi-spawn.git.sourceforge.net/git/gitweb.cgi?p=fcgi-spawn/fcgi-spawn;a=snapshot;h=HEAD;sf=tgz .
 
 =head2 Thanks
 
