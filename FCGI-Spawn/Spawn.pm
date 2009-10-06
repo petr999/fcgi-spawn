@@ -531,7 +531,7 @@ BEGIN {
 			unlink $ENV{FCGI_SOCKET_PATH}
 		)	or die "Exists ".$ENV{FCGI_SOCKET_PATH}.": not a socket or unremoveable";
 	}
-	eval( "use CGI::Fast;" );
+	eval( "use CGI::Fast;" ); die $@ if $@;
 }
 
 my $readchunk=4096;
@@ -632,15 +632,16 @@ sub spawn {
 	$this->set_state( 'fcgi_spawn_inc', { %INC } ) if $this->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
 	$this->set_state_stats if $this->{stats}; # remember %INC to wipe out changes in loop
 	my $req_count=0;
+	#eval " use CGI::Fast; "; die $@ if $@;
 	while( $fcgi = new CGI::Fast ) {
  		$proc_manager->pm_pre_dispatch();
 		my $sn = $ENV{SCRIPT_FILENAME};
 		my $dn = dirname $sn;
 		my $bn = basename $sn;
 		chdir $dn;
-			$this->prespawn_dispatch( $fcgi, $sn );
+			#$this->prespawn_dispatch( $fcgi, $sn );
 		# Commented code is real sugar for nerds ;)
-		# map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
+		#map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
   	#  if $ENV{ 'REQUEST_METHOD' } eq 'POST';	# for nginx-0.5
 		# do $sn ; #or print $!.$bn; # should die on unexistent source file
 		#	my $plsrc=plsrc $sn;	# should explanatory not
@@ -648,7 +649,7 @@ sub spawn {
 		$this->callout( $sn, $fcgi );
 		$req_count ++;
 		exit if $req_count > $max_requests;
-		$this->postspawn_dispatch;
+		#$this->postspawn_dispatch;
  		$proc_manager->pm_post_dispatch();
 		undef $fcgi; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
 	}
