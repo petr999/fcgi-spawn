@@ -2,7 +2,7 @@ package FCGI::Spawn;
 
 use vars qw($VERSION);
 BEGIN {
-  $VERSION = '0.15.1'; 
+  $VERSION = '0.15'; 
   $FCGI::Spawn::Default = 'FCGI::Spawn';
 }
 
@@ -325,6 +325,10 @@ Default is to use trivial do() builtin this way:
     do shift;
   }
 
+=item * post_callout 
+
+is the code reference to be executed right after the callout ends. Intended to clean up the global variables like the request caches between FastCGI queries.
+
 =back
 
 Every other parameter is passed "as is" to the FCGI::ProcManager's constructor.
@@ -626,11 +630,11 @@ sub clean_inc_particular {
 }
 
 sub spawn {
-	my $this = shift;
-	my( $proc_manager, $max_requests, ) = map { $this -> {$_} } qw/proc_manager max_requests/;
-	$this->set_state( 'fcgi_spawn_main', { %main:: } ) if $this->{clean_main_space}; # remember global vars set for cleaning in loop
-	$this->set_state( 'fcgi_spawn_inc', { %INC } ) if $this->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-	$this->set_state_stats if $this->{stats}; # remember %INC to wipe out changes in loop
+	my $self = shift;
+	my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
+	$self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
+	$self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
+	$self->set_state_stats if $self->{stats}; # remember %INC to wipe out changes in loop
 	my $req_count=0;
 	#eval " use CGI::Fast; "; die $@ if $@;
 	while( $fcgi = new CGI::Fast ) {
@@ -639,17 +643,19 @@ sub spawn {
 		my $dn = dirname $sn;
 		my $bn = basename $sn;
 		chdir $dn;
-			#$this->prespawn_dispatch( $fcgi, $sn );
+			#$self->prespawn_dispatch( $fcgi, $sn );
 		# Commented code is real sugar for nerds ;)
 		#map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
   	#  if $ENV{ 'REQUEST_METHOD' } eq 'POST';	# for nginx-0.5
 		# do $sn ; #or print $!.$bn; # should die on unexistent source file
 		#	my $plsrc=plsrc $sn;	# should explanatory not
 		#	eval $$plsrc;
-		$this->callout( $sn, $fcgi );
+		$self->callout( $sn, $fcgi );
+		&{$self->{ post_callout } } if defined(  $self->{ post_callout }  )
+			and 'CODE' eq ref $self->{ post_callout };
 		$req_count ++;
 		exit if $req_count > $max_requests;
-		#$this->postspawn_dispatch;
+		#$self->postspawn_dispatch;
  		$proc_manager->pm_post_dispatch();
 		undef $fcgi; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
 	}

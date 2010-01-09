@@ -1,0 +1,25 @@
+diff -ur bugzilla.orig/Bugzilla/CGI.pm bugzilla/Bugzilla/CGI.pm
+--- bugzilla.orig/Bugzilla/CGI.pm       2010-01-09 20:39:11.000000000 +0400
++++ bugzilla/Bugzilla/CGI.pm    2010-01-10 01:42:57.233956545 +0400
+@@ -33,9 +33,9 @@
+     }
+ }
+
+-use CGI qw(-no_xhtml -oldstyle_urls :private_tempfiles :unique_headers SERVER_PUSH);
++#use CGI qw(-no_xhtml -oldstyle_urls :private_tempfiles :unique_headers SERVER_PUSH);
+
+-use base qw(CGI);
++use base qw(CGI::Fast);
+
+ use Bugzilla::Constants;
+ use Bugzilla::Error;
+@@ -63,7 +63,7 @@
+     my ($invocant, @args) = @_;
+     my $class = ref($invocant) || $invocant;
+
+-    my $self = $class->SUPER::new(@args);
++    my $self = bless new CGI, $class;
+
+     # Make sure our outgoing cookie list is empty on each invocation
+     $self->{Bugzilla_cookie_list} = [];
+
