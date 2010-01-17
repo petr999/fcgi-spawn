@@ -325,10 +325,6 @@ Default is to use trivial do() builtin this way:
     do shift;
   }
 
-=item * post_callout 
-
-is the code reference to be executed right after the callout ends. Intended to clean up the global variables like the request caches between FastCGI queries.
-
 =back
 
 Every other parameter is passed "as is" to the FCGI::ProcManager's constructor.
@@ -643,7 +639,7 @@ sub spawn {
 		my $dn = dirname $sn;
 		my $bn = basename $sn;
 		chdir $dn;
-			#$self->prespawn_dispatch( $fcgi, $sn );
+		$self->prespawn_dispatch( $fcgi, $sn );
 		# Commented code is real sugar for nerds ;)
 		#map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
   	#  if $ENV{ 'REQUEST_METHOD' } eq 'POST';	# for nginx-0.5
@@ -651,8 +647,6 @@ sub spawn {
 		#	my $plsrc=plsrc $sn;	# should explanatory not
 		#	eval $$plsrc;
 		$self->callout( $sn, $fcgi );
-		&{$self->{ post_callout } } if defined(  $self->{ post_callout }  )
-			and 'CODE' eq ref $self->{ post_callout };
 		$req_count ++;
 		exit if $req_count > $max_requests;
 		#$self->postspawn_dispatch;
