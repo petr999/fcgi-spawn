@@ -560,6 +560,8 @@ my $defaults = {
 	stats	=> 1,
 	stats_policy	=> statnames_to_policy( 'mtime' ),
 	state	=> {},
+	seed_rand => 1,
+	save_env => 1,
 };
 
 sub statnames_to_policy {
@@ -592,7 +594,6 @@ sub new {
 
 	$class->make_clean_inc_subnamespace( $properties );
 
-	$proc_manager->pm_manage();
 	$properties->{proc_manager} = $proc_manager;
 	bless $properties, $class;
 }
@@ -612,7 +613,9 @@ sub make_clean_inc_subnamespace {
 
 sub callout {
 	my $self = shift;
-	&{$self->{callout}}( @_ );
+	my %save_env = %ENV if $self->{ save_env };
+	$self->{callout}->( @_ );
+	%ENV = %save_env if $self->{ save_env };
 }
 
 sub clean_inc_particular {
@@ -628,9 +631,11 @@ sub clean_inc_particular {
 sub spawn {
 	my $self = shift;
 	my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
+	$proc_manager->pm_manage();
 	$self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
 	$self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
 	$self->set_state_stats if $self->{stats}; # remember %INC to wipe out changes in loop
+	srand if $self->{ seed_rand }; # make entropy different among forks
 	my $req_count=0;
 	#eval " use CGI::Fast; "; die $@ if $@;
 	while( $fcgi = new CGI::Fast ) {
