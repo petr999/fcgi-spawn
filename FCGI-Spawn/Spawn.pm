@@ -539,10 +539,10 @@ my $maxlength=100000;
 
 sub plsrc {
 	my $sn = shift;
-	unless( open PLSRC, $sn ){ exit $!; exit; }
+	unless( open PLSRC, $sn ){ exit $!; }
 	my $plsrc="";
 	while( my $rv = read( PLSRC, my $buf, $readchunk ) ){
-		unless( defined $rv ){ exit $!; exit; }
+		unless( defined $rv ){ exit $!; }
 		$plsrc .= $buf; exit if length( $plsrc ) > $maxlength;  
 	} close PLSRC;
 	return \$plsrc;
@@ -661,7 +661,7 @@ sub spawn {
 		#	eval $$plsrc;
 		$self->callout( $sn, $fcgi );
 		$req_count ++;
-		exit if $req_count > $max_requests;
+		CORE::exit if $req_count > $max_requests;
 		#$self->postspawn_dispatch;
  		$proc_manager->pm_post_dispatch();
 		undef $fcgi; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
