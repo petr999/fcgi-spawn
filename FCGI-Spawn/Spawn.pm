@@ -562,6 +562,7 @@ my $defaults = {
 	state	=> {},
 	seed_rand => 1,
 	save_env => 1,
+	is_prepared => 0,
 };
 
 sub statnames_to_policy {
@@ -628,7 +629,7 @@ sub clean_inc_particular {
 	} @{ $this->{ clean_inc_subnamespace	} };
 }
 
-sub spawn {
+sub prepare {
 	my $self = shift;
 	my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
 	$proc_manager->pm_manage();
@@ -636,6 +637,13 @@ sub spawn {
 	$self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
 	$self->set_state_stats if $self->{stats}; # remember %INC to wipe out changes in loop
 	srand if $self->{ seed_rand }; # make entropy different among forks
+	$self->{ is_prepared } = 1;
+}
+
+sub spawn {
+	my $self = shift;
+	$self->prepare unless $self->{ is_prepared };
+	my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
 	my $req_count=0;
 	#eval " use CGI::Fast; "; die $@ if $@;
 	while( $fcgi = new CGI::Fast ) {
