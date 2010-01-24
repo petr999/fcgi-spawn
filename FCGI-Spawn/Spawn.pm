@@ -668,10 +668,12 @@ sub spawn {
 	}
 }
 sub get_inc_stats{
-	my %inc_state = map { my $stat = [ stat $_ ]; 
-	#	undef $stat->[8];  
-		$_ => $stat;  
-	} values %INC;
+	my %inc_state = (); 
+	foreach my $src_file ( values %INC ){
+		next unless -f $src_file;
+		my $stat = [ stat $src_file ]; 
+		$inc_state{ $src_file } = $stat;  
+	}
 	return \%inc_state;
 }
 sub set_state_stats {
@@ -719,10 +721,18 @@ sub clean_inc_modified {
 			my $new_stat = $new_stats->{ $module };
 			my $old_stat = $old_stats->{ $module };
 			foreach my $i ( @$policy ){
+				unless( 
+					defined( $new_stat->[ $i ] )
+						and
+					defined( $old_stat->[ $i ] )
+				){
+					$modified = 1; last;
+				}
 				my $new_element = $new_stat->[ $i ];
 				my $old_element = $old_stat->[ $i ];
-				$modified = 1 if $new_element != $old_element;
-				last if $modified;
+				unless(  $new_element == $old_element ){
+					$modified = 1; last;
+				}
 			} 
 		}
 		delete_inc_by_value( $module ) if $modified;
