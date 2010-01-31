@@ -520,6 +520,7 @@ use base qw/Exporter/;
 our @EXPORT_OK = qw/statnames_to_policy/;
 
 our $fcgi = undef;
+our %xinc = ();
 
 BEGIN {
 	die "CGI::Fast made its own BEGIN already!" if defined $INC{'CGI/Fast.pm'};
@@ -559,6 +560,8 @@ my $defaults = {
 	},
 	stats	=> 1,
 	stats_policy	=> statnames_to_policy( 'mtime' ),
+	x_stats	=> 1,
+	x_stats_policy	=> statnames_to_policy( 'mtime' ),
 	state	=> {},
 	seed_rand => 1,
 	save_env => 1,
@@ -600,7 +603,7 @@ sub new {
 }
 
 sub make_clean_inc_subnamespace {
-	my( $this, $properties ) = @_;
+	my( $self, $properties ) = @_;
 	my $cisns = $properties->{ clean_inc_subnamespace };
 	if( '' eq ref $cisns ){
 		$cisns = [ $cisns ];
@@ -620,13 +623,13 @@ sub callout {
 }
 
 sub clean_inc_particular {
-	my $this= shift;
+	my $self= shift;
 	map { 
 		my $subnamespace_to_clean = $_;
 		map { delete $INC{ $_ } } 
 			grep {  $subnamespace_to_clean eq substr $_, 0, length $subnamespace_to_clean  }
 				keys %INC 
-	} @{ $this->{ clean_inc_subnamespace	} };
+	} @{ $self->{ clean_inc_subnamespace	} };
 }
 
 sub prepare {
@@ -635,7 +638,8 @@ sub prepare {
 	$proc_manager->pm_manage();
 	$self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
 	$self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-	$self->set_state_stats if $self->{stats}; # remember %INC to wipe out changes in loop
+	$self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
+	$self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
 	srand if $self->{ seed_rand }; # make entropy different among forks
 	$self->{ is_prepared } = 1;
 }
@@ -668,8 +672,10 @@ sub spawn {
 	}
 }
 sub get_inc_stats{
+	my $stat_src = shift;
 	my %inc_state = (); 
-	foreach my $src_file ( values %INC ){
+	my $fns = [ defined( $stat_src ) ? keys( %$stat_src ) :  values %INC ];
+	foreach my $src_file ( @$fns ){
 		next unless -f $src_file;
 		my $stat = [ stat $src_file ]; 
 		$inc_state{ $src_file } = $stat;  
@@ -677,9 +683,11 @@ sub get_inc_stats{
 	return \%inc_state;
 }
 sub set_state_stats {
-	my $this = shift;
-	my $stats = get_inc_stats;
-	$this->set_state( 'stats', $stats );
+	my( $self, $pref, $stat_src ) = @_;
+	my $stats_name = 'stats';
+	$stats_name = $pref."_$stats_name" if defined $pref;
+	my $stats = get_inc_stats $stat_src;
+	$self->set_state( $stats_name, $stats );
 }
 sub delete_inc_by_value{
 	my $module = shift;
@@ -690,31 +698,126 @@ sub delete_inc_by_value{
 	}
 }
 sub postspawn_dispatch {
-	my $this = shift;
-	$this->set_state_stats;
+	my $self = shift;
+	$self->set_state_stats if $self->{ stats };
+	$self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats };
 }
 sub prespawn_dispatch {
-	my ( $this, $fcgi, $sn ) = @_;
+	my ( $self, $fcgi, $sn ) = @_;
 	$fcgi->initialize_globals; # to get rid of CGI::save_request consequences
-	delete $INC{ $sn } if exists( $INC{ $sn } ) and $this->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
+	delete $INC{ $sn } if exists( $INC{ $sn } ) and $self->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
 	#map { delete $INC{ $_ } if not exists $fcgi_spawn_inc{ $_ } } keys %INC 
-	if( $this->{clean_inc_hash} == 2 ){ #if %INC change is unwanted at all
-		my $fcgi_spawn_inc = $this->get_state( 'fcgi_spawn_inc' );
+	if( $self->{clean_inc_hash} == 2 ){ #if %INC change is unwanted at all
+		my $fcgi_spawn_inc = $self->get_state( 'fcgi_spawn_inc' );
 		%INC = %$fcgi_spawn_inc ;
 	}
-	$this->clean_inc_particular;
-	$this->clean_inc_modified if $this->{ stats };
-	if( $this->{clean_main_space} ){ # actual cleaning vars
+	$self->clean_inc_particular;
+	$self->clean_inc_modified if $self->{ stats };
+	$self->clean_xinc_modified if $self->{ x_stats };
+	if( $self->{clean_main_space} ){ # actual cleaning vars
 		foreach ( keys %main:: ){ 
-			delete $main::{ $_ } unless $this->defined_state( 'fcgi_spawn_main', $_ ) ;
+			delete $main::{ $_ } unless $self->defined_state( 'fcgi_spawn_main', $_ ) ;
 		}
 	}
 }
+sub xinc{
+	my( $fn, $cref ) = @_;
+	my $rv = undef; my $was_cached = 0;
+	if( defined( $fn ) and defined( $cref ) and 'CODE' eq ref $cref ){
+		my $fref = ref $fn;
+		if( $fref eq '' ){
+			if( defined $xinc{ $fn }  ){
+				$rv = $xinc{ $fn };
+				$was_cached = 1;
+			} else {
+				$rv = $cref->( $fn );
+				$xinc{ $fn } = $rv;
+			}
+		} elsif( ( $fref eq 'ARRAY' ) and scalar @$fn ){
+			if( defined $xinc{ $fn->[ 0 ] } ){
+				$rv = $xinc{ $fn->[ 0 ] };
+				$was_cached = 1;
+			} else {
+				$rv = $cref->( @$fn );
+				$xinc{ $fn->[ 0 ] } = $rv;
+			}
+			if( scalar @$fn > 1 ){
+				for( my $i = 1; $i < scalar @$fn; $i ++ ){
+					my $arr_fn = $fn->[ $i ];
+					if( defined( $xinc{ $arr_fn } ) ){
+						if( 'ARRAY' eq ref $xinc{ $arr_fn } ){
+							push( @{ $xinc{ $arr_fn } },  $fn->[ 0 ] ) unless grep { $_ eq $fn->[ 0 ] } @{ $xinc{ $arr_fn } };
+						} else {
+							die "xinc: dependence $arr_fn is previously defined";
+						}
+					} else {
+						$xinc{ $arr_fn } = [ $fn->[ 0 ] ];
+					}
+				}
+			}
+		}
+	}
+	return $rv;
+}
+
+sub array_comparison{
+	my( $arr0, $arr1 ) = @_;
+	my( $equals, $found_elem ) =( 0, undef );
+	if( scalar( @$arr0 ) == scalar( @$arr1 ) ){
+		$equals = 1;
+		foreach my $elem0  ( @$arr0 ){
+			map{
+				if( $elem0 ne $_ ){
+					$equals = 0; last; 
+				}
+			}	@$arr1 ;
+		}
+	} 
+	return $equals;
+}
+
+sub clean_xinc_modified {
+	my $self = shift;
+	my $old_stats = $self->get_state( 'x_stats' );
+	my $new_stats = get_inc_stats \%xinc;
+	my $policy = $self->{ x_stats_policy };
+	foreach my $item ( keys %$new_stats ){
+		my $modified = 0;
+		if( defined $old_stats->{ $item } ){
+			my $new_stat = $new_stats->{ $item };
+			my $old_stat = $old_stats->{ $item };
+			foreach my $i ( @$policy ){
+				unless( 
+					defined( $new_stat->[ $i ] )
+						and
+					defined( $old_stat->[ $i ] )
+				){
+					$modified = 1; last;
+				}
+				my $new_element = $new_stat->[ $i ];
+				my $old_element = $old_stat->[ $i ];
+				unless(  $new_element == $old_element ){
+					$modified = 1; last;
+				}
+			} 
+		}
+		if( $modified ){
+			if( 'ARRAY' eq ref $xinc{ $item } ){
+				map{
+					delete( $xinc{ $_ } ) if defined $xinc{ $_ } ;
+				} @{ $xinc{ $item } };
+			}
+			delete $xinc{ $item } ;
+		}
+	}
+	$self->set_state_stats( 'x', \%xinc );
+}
+
 sub clean_inc_modified {
-	my $this = shift;
-	my $old_stats = $this->get_state( 'stats' );
+	my $self = shift;
+	my $old_stats = $self->get_state( 'stats' );
 	my $new_stats = get_inc_stats;
-	my $policy = $this->{ stats_policy };
+	my $policy = $self->{ stats_policy };
 	foreach my $module ( keys %$new_stats ){
 		my $modified = 0;
 		if( defined $old_stats->{ $module } ){
@@ -739,16 +842,16 @@ sub clean_inc_modified {
 	}
 }
 sub defined_state{
-	my( $this, $key ) = @_;
-	defined $this->{ state }->{ $key };
+	my( $self, $key ) = @_;
+	defined $self->{ state }->{ $key };
 }
 sub get_state {
-	my( $this, $key ) = @_;
-	$this->{ state }->{ $key };
+	my( $self, $key ) = @_;
+	$self->{ state }->{ $key };
 }
 sub set_state {
-	my( $this, $key, $val ) = @_;
-	$this->{ state }->{ $key } = $val;
+	my( $self, $key, $val ) = @_;
+	$self->{ state }->{ $key } = $val;
 }
 
 1;
