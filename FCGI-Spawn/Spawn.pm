@@ -666,7 +666,7 @@ sub spawn {
 		$self->callout( $sn, $fcgi );
 		$req_count ++;
 		CORE::exit if $req_count > $max_requests;
-		#$self->postspawn_dispatch;
+		$self->postspawn_dispatch;
  		$proc_manager->pm_post_dispatch();
 		undef $fcgi; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
 	}
@@ -722,13 +722,12 @@ sub prespawn_dispatch {
 }
 sub xinc{
 	my( $fn, $cref ) = @_;
-	my $rv = undef; my $was_cached = 0;
+	my $rv = undef;
 	if( defined( $fn ) and defined( $cref ) and 'CODE' eq ref $cref ){
 		my $fref = ref $fn;
 		if( $fref eq '' ){
 			if( defined $xinc{ $fn }  ){
 				$rv = $xinc{ $fn };
-				$was_cached = 1;
 			} else {
 				$rv = $cref->( $fn );
 				$xinc{ $fn } = $rv;
@@ -736,7 +735,6 @@ sub xinc{
 		} elsif( ( $fref eq 'ARRAY' ) and scalar @$fn ){
 			if( defined $xinc{ $fn->[ 0 ] } ){
 				$rv = $xinc{ $fn->[ 0 ] };
-				$was_cached = 1;
 			} else {
 				$rv = $cref->( @$fn );
 				$xinc{ $fn->[ 0 ] } = $rv;
@@ -758,22 +756,6 @@ sub xinc{
 		}
 	}
 	return $rv;
-}
-
-sub array_comparison{
-	my( $arr0, $arr1 ) = @_;
-	my( $equals, $found_elem ) =( 0, undef );
-	if( scalar( @$arr0 ) == scalar( @$arr1 ) ){
-		$equals = 1;
-		foreach my $elem0  ( @$arr0 ){
-			map{
-				if( $elem0 ne $_ ){
-					$equals = 0; last; 
-				}
-			}	@$arr1 ;
-		}
-	} 
-	return $equals;
 }
 
 sub clean_xinc_modified {
