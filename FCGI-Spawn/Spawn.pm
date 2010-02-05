@@ -520,7 +520,7 @@ use base qw/Exporter/;
 our @EXPORT_OK = qw/statnames_to_policy/;
 
 our $fcgi = undef;
-our %xinc = ();
+my %xinc = ();
 
 BEGIN {
 	die "CGI::Fast made its own BEGIN already!" if defined $INC{'CGI/Fast.pm'};
