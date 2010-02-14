@@ -638,8 +638,6 @@ sub prepare {
 	$proc_manager->pm_manage();
 	$self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
 	$self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-	$self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
-	$self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
 	srand if $self->{ seed_rand }; # make entropy different among forks
 	$self->{ is_prepared } = 1;
 }
@@ -699,8 +697,8 @@ sub delete_inc_by_value{
 }
 sub postspawn_dispatch {
 	my $self = shift;
-	$self->set_state_stats if $self->{ stats };
-	$self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats };
+	$self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
+	$self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
 }
 sub prespawn_dispatch {
 	my ( $self, $fcgi, $sn ) = @_;
@@ -792,7 +790,6 @@ sub clean_xinc_modified {
 			delete $xinc{ $item } ;
 		}
 	}
-	$self->set_state_stats( 'x', \%xinc );
 }
 
 sub clean_inc_modified {
