@@ -615,11 +615,16 @@ sub make_clean_inc_subnamespace {
 	$properties->{ clean_inc_subnamespace } = $cisns;
 }
 
-sub callout {
+sub _callout {
 	my $self = shift;
 	my %save_env = %ENV if $self->{ save_env };
 	$self->{callout}->( @_ );
 	%ENV = %save_env if $self->{ save_env };
+}
+sub callout {
+	my $self = shift;
+	$self->_callout( @_ );
+	$self->postspawn_dispatch;
 }
 
 sub clean_inc_particular {
@@ -661,7 +666,7 @@ sub spawn {
 		# do $sn ; #or print $!.$bn; # should die on unexistent source file
 		#	my $plsrc=plsrc $sn;	# should explanatory not
 		#	eval $$plsrc;
-		$self->callout( $sn, $fcgi );
+		$self->_callout( $sn, $fcgi );
 		$req_count ++;
 		CORE::exit if $req_count > $max_requests;
 		$self->postspawn_dispatch;
@@ -780,6 +785,8 @@ sub clean_xinc_modified {
 					$modified = 1; last;
 				}
 			} 
+		} else {
+			$modified = 1;
 		}
 		if( $modified ){
 			if( 'ARRAY' eq ref $xinc{ $item } ){
