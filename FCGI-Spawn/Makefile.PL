@@ -21,5 +21,6 @@ WriteMakefile
 		),
    	dist        => { COMPRESS => 'gzip', SUFFIX => 'gz', },
 		PREREQ_PRINT	=>	1,
+		EXE_FILES		=> [ qw/fcgi_spawn/ ],
 		PREREQ_PM		=> {	'FCGI::ProcManager'	=>	0, },
   );

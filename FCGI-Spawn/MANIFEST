@@ -1,4 +1,9 @@
+COPYING
 Changes
 Makefile.PL
 MANIFEST
 README
+Spawn.pm
+fcgi_spawn
+Bugzilla.CGI.pm.fcgi.spawn.patch
+CGI.pm.fcgi.spawn.patch

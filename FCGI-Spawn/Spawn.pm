@@ -2,7 +2,7 @@ package FCGI::Spawn;
 
 use vars qw($VERSION);
 BEGIN {
-  $VERSION = '0.15.1'; 
+  $VERSION = '0.16'; 
   $FCGI::Spawn::Default = 'FCGI::Spawn';
 }
 
@@ -14,118 +14,69 @@ BEGIN {
 
 Minimum unrecommended way to illustrate it working:
 
-	use FCGI::Spawn;
-	my $spawn = FCGI::Spawn->new();
-	$spawn -> spawn;
+	FCGI::Spawn->new->spawn;
 
-Never put this in production use.
-This should be run as the web server's user id ( or another if umask isn't 022 ) and the web server should be configured to request its FastCGI on the default socket file name, the /tmp/spawner.sock.
-Consider to run as user other than web server's and setting up the proper sock_chmod/sock_chown parameters necessity.
+Never put this in production use. The C<fcgi_spawn> script supplied should care about sadly mandatory whistles and bells, at least the security is a king in sight of this:
+
+FCGI::Spawn code should be run as its own user id, and the web server should be configured to request its FastCGI; in the case the local socket file is used, the web server should have the read and write permissions on it, the default name is /tmp/spawner.sock.
+Consider about sock_chmod/sock_chown parameters for this, too.
+
+
 In the case if you request via TCP care should be taken on network security like DMZ/VPN/firewalls setup instead of sock_* parameters.
 
-Tried to get know satisfaction with bugzilla...
-There's no place to dig out that Bugzilla doesn't work out with FastCGI other than Bugzilla's own Bugzilla though.
+About the ready to run applications compatibility refer to C<fcgi_spawn> docs.
 
-Tried the same with WebGUI.org.
-The versions since 6.9 went to require the mod_perl2 strictly.
-OK, but version 6.8 does work well at least as does at http://alpha.vereshagin.org.
-This is my ./run for daemontools by http://cr.yp.to:
+Every other thing is explained in L<FCGI::ProcManager|FCGI::ProcManager> docs.
 
-#!/usr/bin/perl
+=head1 DESCRIPTION
 
-package main;
-use strict;
-use warnings;
+The overall idea is to make Perl server-side scripts as convinient for newbies and server administrators as PHP in FastCGI mode.
 
-our $webguiRoot;
+FCGI::Spawn is used to serve as a FastCGI process manager.
+Besides  the features the FCGI::ProcManager posess itself, the FCGI::Spawn is targeted as web server admin understandable instance for building the own fastcgi server with copy-on-write memory sharing among forks and with single input parameters like the limits on the number of processes and maximum requests per fork.
 
-use Carp; $SIG{__DIE__} = sub{ print @_; print Carp::longmess };
+Another thing to mention is that it is able to execute any file pointed by Web server ( FastCGI requester ).
+So we have the daemon that is hot ready for hosting providing :-)
 
-BEGIN{
-	use Cwd qw/realpath getcwd/;
-	use File::Basename qw/dirname/;
+The definitive care is taken in FCGI::Spawn on security.
+Besides the inode settings on local UNIX socket taken as input parameter, it is aware to avoid hosting users from changing the max_requests parameter meant correspondent to MaxRequests Apache's forked MPM parameter, and the respective current requests counter value as well.
 
-	$ENV{FCGI_SOCKET_PATH} = "/tmp/spawner.sock";
-	
-	$webguiRoot = realpath( dirname( __FILE__ )."/../../wg" );
-	my $webguiLib = "$webguiRoot/lib";
-	
-	unshift( @INC, $webguiLib ) unless grep { $_ eq $webguiLib } @INC;
-}
-use FCGI::Spawn;
-$FCGI::Spawn::fcgi = new CGI; eval ${ FCGI::Spawn::plsrc( $webguiRoot.'/../www/index.pl' ) }; die $@ if $@; undef $FCGI::Spawn::fcgi;
+The aforementioned max_requests parameter takes also care about the performance to avoid forks' memory leaks to consume all the RAM accounted on your hardware.
 
+For shared hosting it is assumed that system administrator controls the process manager daemon script contents with those user hardware consumption limits and executes it with a user's credentials.
+E. g., the user should be able to send signal to the daemon to initiate graceful restart on his/her demand ( this is yet to be done ) or change the settings those administrator can specifically allow in the daemon starter script without restart ( both of those features are about to be done in the future ).
 
+The call stack lets you set up your own code reference for your scripts execution. Also, feature exists that you can cache some object, like the template or XSLT processor and the recompilation to happen only on the template or xsl file(s) change. Environment variables can be preserved from changing in CGI programs, too. Those features are new in 0.16.
 
-my $spawn = FCGI::Spawn->new({ 	# n_processes => 1, 
-																sock_chown => [qw/-1 27534/],
-                                        sock_chmod => 0660,
-															},
-														);
-$spawn -> spawn;
+Seeking for convention between high preformance needs that the perl compile cache possess and the convinience of debugging with recompilation on every request that php provides, the C<stats> feature allows you not to recompile the tested source like those of DBI and frameworks but focus the development on your application only, limiting the recompilation with your application(s) namespace(s) only.
+This may be useful in both development environment to make the recompilation yet faster and on a production host to make the details of code adaptaion to hosting clear in a much less time needed.
 
-1;
+=head1 Behind the scenes of fcgi_spawn
 
-And, the minimum suggested way to spawn your FastCGI Perl scripts is as follows:
+Here are the details for those unsatisfied with C<fcgi_spawn> but trying with FCGI::Spawn anyway:
 
-	#!/usr/bin/perl -w
-	$ENV{FCGI_SOCKET_PATH} = "/path/to/spawner.sock";
-	#	unshift @INC, "path/to/patched/CGI.pm"; # if need CGI.pm to work in sources
-	eval( "use FCGI::Spawn;" );
-	my $spawn = FCGI::Spawn->new({ n_processes => 7
-	        });
-	$spawn -> spawn;
+=over
 
-Here is the one more easy way to posess the daemontools facilities:
+=item * You must configure socket
 
-	$ cat ./env/FCGI_SOCKET_PATH
-	/tmp/spawner.sock
-	$ cat ./run
-	#!/bin/sh
-	exec 2>&1
-	exec envdir ./env su fcgi -c '
-	  ./fcgi-run 
-	'
-	$ cat ./fcgi-run
-	#!/usr/bin/perl -w
-	use FCGI::Spawn;
-	my $spawn = FCGI::Spawn->new();
-	$spawn -> spawn;
+with %ENV or shell and tweak the CGI.pm with the patch supplied, if need, at early before use FCGI::Spawn.  
 
-A few more notes:
-
-** You must configure socket with %ENV and tweak the patched CGI.pm, if need, at early before use FCGI::Spawn.
-The fisrt is achieved by mean of setting environment at behind in the shell or by mean of envdir feature of daemontools.
-%ENV and @INC can be tweaked in the special BEGIN block, as shown in examples above.
-You can eval use "FCGI::Spawn"; otherwise. And, you can delete $INC{ 'CGI.pm' } also if need to have patched CGI.pm to be compiled after teh unpatched system's one.
-
-( I assume you need your own socket file name AND it must be tweakeable from inside of Perl. Second is to have CGI input to work in your applications )
-
+%ENV and @INC can be tweaked in the special BEGIN block or you can eval "use FCGI::Spawn;" otherwise.
 This is because of setting up the socket communication in the CGI::Fast, which is the part of Perl core distribution, right in the BEGIN block, e. g. right before the compilation.
-But the one should restrictively point the socket file location right before the BEGIN block of the CGI::Fast.
-Well, without CGI::Fast there shouldn't be workable POST queries contents parsing, as it was up to FCGI::Spawn version 0.12.
-Another reason to do so is the need in your own CGI.pm patched with the CGI.pm.fcgi.spawn.patch applied to be used in your own library path that can be used as a string for unshift @INC.
 
-** You should beware about CGI::Fast IS NOT included at the moment this module is being used, e. g. IS ABSENT in the %INC global hash.
-Because of that same reason.
+=item * You should beware about CGI::Fast IS NOT included
 
-** CGI scripts ( or CGI.pm ) must be tweaked to use $FCGI::Spawn::fcgi instead of new CGI or CGI->new.
+at the moment this module is being used, e. g. IS ABSENT in the %INC global hash.
+
+=item * CGI scripts ( if not CGI.pm ) must be tweaked to use $FCGI::Spawn::fcgi instead of new CGI or CGI->new.
+
 In other case they will not be able to process HTTP POST.
+
+In some caeses ( e. g. Bugzilla that derives CGI.pm ) the sources should be changed, too.
 Hope your code obfuscators are not that complex to allow such a tweak. ;-)
-At least it is obvious for FastCGI scripts to require FastCGI object if you use your application in any FastCGI environment.
-Otherwise, you can patch your CGI.pm with the supplied CGI.pm.fcgi.pm.patch, this can be your system CGI.pm, although it is not necessary.
-You can put the separate patched CGI.pm in the separate path for your perl sources and put that in teh begin of the @INC right before CGI.pm is used, even by dependencies.
-FCGI::Spawn (still) depends on it, so eval() the use FCGI::Spawn or put those actions in the BEGIN{}.
+FastCGI scripts do take the FastCGI object as a parameter, so it is obviously supplied in the callout code reference ( see below ).
 
-Thanks for understanding.
-
-=head2 Why daemontools?
-
-They have internal log-processing and automatical daemon restart on fault.
-Sure they posess control like stop/restart.
-Check em out and see.
-But those are not strictly necessary.
-Another reason is that i'm not experienced much with Perl daemons building like getting rid of STD* file handles and SIG* handling.
+=back
 
 =head2 Why not mod_perl/mod_perl2/mod_fcgid?
 
@@ -175,7 +126,7 @@ The unclear differences between the bundled PerlHandler-s environments among wit
 
 Persistent connections feature makes it slightly faster for skip connect to DB stage on every request.
 
-=item * Apache::Request
+=item * Apache::Request, Apache::Session, etc.
 
 HTTP input promises to be much more effective than the CGI.pm's one, used in CGI::Fast, too.
 You may need also more information about request, like full incoming headers, too.
@@ -185,48 +136,21 @@ Those are obvious to be contained in the Apache internal structures rather than 
 
 =head2 Why not simply FCGI::ProcManager?
 
+Targeted as a library for a single particular application or applications' framework, it takes you to make FCGI::Spawn and fcgi_spawn to obtain the ready to use application-agnostic daemon.
 It seems to require too much in Perl knowledge from regular system administrator ( same as for startup.pl audit goes here ), in comparison to php's fastcgi mode.
 Even with that, it is not as mock as FCGI::Spawn for software developer.
 You will need to be me if you will need its features, if you are a sysadmin, while I'm the both.
 
-
-=head1 DESCRIPTION
-
-The overall idea is to make Perl server-side scripts as convinient for newbies and server administrators as PHP in FastCGI mode.
-
-FCGI::Spawn is used to serve as a FastCGI process manager.
-Besides  the features the FCGI::ProcManager posess itself, the FCGI::Spawn is targeted as web server admin understandable instance for building the own fastcgi server with copy-on-write memory sharing among forks and with single input parameters like processes number and maximum requests per fork.
-
-Another thing to mention is that it is able to execute any file pointed by Web server ( FastCGI requester ).
-So we have the daemon that is hot ready for hosting providing :-)
-
-The definitive care is taken in FCGI::Spawn on security.
-Besides the inode settings on local UNIX socket taken as input parameter, it is aware to avoid hosting users from changing the max_requests parameter meant correspondent to MaxRequests Apache's forked MPM parameter, and the respective current requests counter value as well.
-
-The aforementioned max_requests parameter takes also care about the performance to avoid forks' memory leaks to consume all the RAM accounted on your hardware.
-
-For shared hosting it is assumed that system administrator controls the process manager daemon script contents with those user hardware consumption limits and executes it with a user's credentials.
-E. g., the user should be able to send signal to the daemon to initiate graceful restart on his/her demand ( this is yet to be done ) or change the settings those administrator can specifically allow in the daemon starter script without restart ( both of those features are about to be done in the future ).
-For example, user may want to recompile the own sources and quickly change the clean_inc_hash for this.
-
-The call stack lets you set up your own code reference for your scripts execution.  
-
-Seeking for convention between high preformance needs that the perl compile cache possesses and the convinience of debugging with recompilation on every request that php provides, the `stats`	feature allows you not to recompile the tested source like those of DBI and frameworks but focus the development on your application development only, limiting the recompilation with your application(s) namespace(s) only.
-This may be useful in both development environment to make the recompilation yet faster and on a production host to make the details of code adaptaion to hosting clear in a much less time needed.
-This is new feature in v. 0.15 .
-
-Every other thing is explained in FCGI::ProcManager docs.
-
 =head1 PREREQUISITES
 
-Be sure to have FCGI::ProcManager.
+Be sure to have L<FCGI::ProcManager|FCGI::ProcManager>.
 
 =head1 METHODS
 
-class or instance
 
 =head2 new({hash parameters})
 
+Class method.
 Constructs a new process manager.
  Takes an option hash of the sock_name and sock_chown initial parameter values, and passes the entire hash rest to ProcManager's constructor.
 The parameters are:
@@ -235,18 +159,19 @@ The parameters are:
 
 =item * $ENV{FCGI_SOCKET_PATH} 
 
-should be set before module compilation, to know where the socket resides.
-Can be in the host::port or even :port notation for TCP, as FCGI's remote.fpl states.
+Not a hash parameter but the enironment variable.
+Should be set before module compilation, to know where the socket resides.
+Can be in the host:port or even :port notation for TCP, as FCGI.pm's remote.fpl states.
 Default: /tmp/spawner.sock.
 
 You can set environment value with your shell like this:
 
-FCGI_SOCKET_PATH=/var/lib/fcgi.sock ./fcgi.pl
+FCGI_SOCKET_PATH=/var/lib/fcgi.sock ./fcgi_spawn.pl <parameters>
 
 or you can enclose it into the eval() like that:
 
-$ENV{FCGI_SOCKET_PATH}  = '/var/lib/fcgi.sock';
-eval( "use FCGI::Spawn;" ); die $@ if $@;
+ $ENV{FCGI_SOCKET_PATH}  = '/var/lib/fcgi.sock';
+ eval( "use FCGI::Spawn;" ); die $@ if $@;
 
 =item * sock_chown 
 
@@ -256,6 +181,7 @@ Default: none.
 =item * readchunk 
 
 is the buffer size for user's source reading in plsrc function.
+Deprecated and will be removed in future versions.
 Default: 4096.
 
 =item * maxlength 
@@ -270,13 +196,17 @@ Default: 20.
 
 =item * stats 
 
-Whether to do or do not the stat() on every file on the %INC to recompile on change by mean of removal from %INC.
+Whether to do or not to do the stat() on every file on the %INC to recompile on change by mean of removal from %INC.
 Default: 1.
 
 =item * stats_policy 
 
 Array reference that defines what kind of changes on the every module file stat()'s change to track and in what order.
-Default: FCGI::Spawn::statnames_to_policy( 'mtime' ) ( statnames_to_policy function is described below ).
+Default: FCGI::Spawn::statnames_to_policy( 'mtime' ) ( statnames_to_policy() function is described below ).
+
+=item * x_stats  and x_stats_policy
+
+Same as stats and stats_policy but for xinc() feature ( see below ).
 
 =item * clean_inc_hash 
 
@@ -310,33 +240,50 @@ Default: empty.
 
 is the code reference to include the user's file by your own.
 Its input parameters are the script name with full path and the FastCGI object, the CGI::Fast instance.
-This is the default ( the plsrc() returns the file's contents, and eval() executes them ):
-
-	{
-		my( $sn, $fcgi ) = @_;
-		my $plsrc=plsrc $sn;
-		eval $$plsrc;
-	}
-
-using this as an example, one can provide his/her own inclusion stuff.
 Default is to use trivial do() builtin this way:
 
   sub{  
     do shift;
   }
 
+If use C<fcgi_spawn>, you must define your own callout with exit() redefinition  and it should contain the CALLED_OUT label inside.
+
+=item * save_env
+
+should the %ENV ( environment variables ) be restored after every callout.
+Default: 1.
+
 =back
 
 Every other parameter is passed "as is" to the FCGI::ProcManager's constructor.
 Except for addition about the  n_processes, which defaults to 5.
 
+=head2 prepare
+
+Instance method.
+Performs C<fork()>s by mean of L<FCGI::ProcManager/pm_manage> and necessary preparational steps. It is executed, if not yet, by:
+
 =head2 spawn
 
-Fork a new process handling request like that being processed by web server.
+Instance method.
+Fork a new process handling request like that being processed by web server. Performs prepare() if object is not yet prepared.
 
 =head2 callout
 
-performs user's code execution. Isolates the max_requests and current requests counter values from changing in the user's source.
+Instance method.
+performs user's code execution. Isolates the max_requests, environment and current requests counter values from changing in the user's source. Performs the remembering of the included Perl modules files and the files for the xinc() feature, too.
+
+=head2 xinc( '/path/to/file', $ref );
+
+Static function.
+Returns the previous result of the function referenced by $ref called with file as the argument.
+Typical usage is the template compilation.
+Those get recompiled in the case the files were changed. Depends on x_stats and x_stats_policy properties.
+
+If the $ref is an array reference, then it is expected to contain the file names with full path those depend on the followed parameter, file name.
+This is useful in the case when one template file includes another, and so on.
+For example, the included file should be the '/path/to/header_or_footer_file'  in this case, and the next parameter is [ '/path/to/index_page_template', '/path/to/landing_page_template', ... ] with all the dependent files mentioned.
+Those dependent files should be xinc()'ed  at the end of the every xinc() chain with the code reference.
 
 =head2 plsrc
 
@@ -350,38 +297,65 @@ Static function.
 Convert the list of file inode attributes' names checked by stat() builtin to the list of numbers for it described in the perldoc -f stat .
  In the case if the special word 'all' if met on the list, all the attributes are checked besides 'atime' (8).
 Also, you can define the order in which the stats are checked to reload perl modules: if the change is met, no further checks of this list for particular module on particular request are made as a decision to recompile that source is already taken.
-This is the convionient way to define the modules reload policy, the 'stat_policy' object property, among with the need in modules' reload itself by the 'stats' property checked as boolean only.
+This is the convinient way to define the modules reload policy, the 'stat_policy' object property, among with the need in modules' reload itself by the 'stats' property checked as boolean only.
 
 =head1 Thanks, Bugs, TODOs, Pros and Contras ( The Etcetera )
 
 =head2 The Inclusion
 
-I had many debates and considerations about inclusion the end user scripts. Here's my own conclusions:
+Arbitrary source file can be included to supply the response in this way:
 
 =over
 
-=item the default is to: do()
+=item the built-in: do()
 
-should be the best but not verbose enough and very definitive about exceptions.
-But the major in this is that it isolates $fcgi request lexical variable, so it is made global of this package.
-
-=item require()
-
-makes the every fork failed to incorporate the user's source to die() which is painful under heavy load.
+.
 
 =item system() or exec()
 
-makes your FastCGI server to act as the simple CGI, except POST input is unavailable.
 Useful for debugging.
+Makes your FastCGI server to act as the simple CGI, except POST input requires complex trick:
 
-=item  Mentioned plsrc() and eval() sub
+ use Time::Local qw/timegm/;
+ use POSIX qw/strftime/;
 
-reads user's source sized up to "maxlength" by buffers chunks of "readchunk" initial parameters.
-And, eval()'s it.
-Problem with this not only performance loss, but some thing do not work ou there, too, at least the built-in  __FILE__ constant points to wrong location. ;-)
+ use IPC::Run3;
+ use IPC::Run::SafeHandles;
+ use CGI::Util qw/escape/;
+ use IO::File;
+ use HTTP::Request::Common;
+	...
 
-Deprecated and will be removed in future versions.
-One can write it by self defining the:
+  $spawn->{	callout } = sub{ 
+    my( $sn, $fcgi ) = @_; 
+    my( $in, $out, $err ) ;
+    IF( $env{'REQUEST_METHOD'} eq 'POST' ){
+    		$in = HTTP::Request::Common::POST( $ENV{'REQUEST_URI'},
+    			"Content_Type" => $ENV{'CONTENT_TYPE'},
+    			"Content" => [ 
+    				map { 
+    							my $val = $FCGI::Spawn::fcgi->param( $_ );
+    							if( 'Fh' eq ref $val ){
+    								$val =  [ ${ $FCGI::Spawn::fcgi->{'.tmpfiles'}->{
+    										 ${ $FCGI::Spawn::fcgi->param( $_ ) }
+    									}->{name} },
+    									$FCGI::Spawn::fcgi->param( $_ ) ,
+    								];
+    							}
+    							$_ => $val 
+    						}
+    							$FCGI::Spawn::fcgi->param
+    			],   
+    		)->content;
+    		$ENV{ CONTENT_LENGTH } = 
+    		$ENV{ HTTP_CONTENT_LENGTH } = 
+    		length $in;
+    }
+    my $pid = run3( $sn, \$in, \$out, \$out ) or die $!;
+    print $out;
+  };
+
+One also can write the own inclusion code it by self defining the:
 
 =item your own CODE ref
 
@@ -389,14 +363,18 @@ is able to be set by the "callout" initial parameter and/or "callout" object pro
 
 =back
 
-=head2 The Bugs
+=head2 Bugs and TODOs
 
-Fresh bugs, fixes and features are to be available on git://github.com/petr999/fcgi-spawn.git .
+Tracked and to be reported at:
+
+L<http://bugs.vereshagin.org/product/FCGI%3A%3ASpawn>
+
+Development repository is at: L<git://github.com/petr999/fcgi-spawn.git>.
+
 
 =head2 Tested Environments
 
 Nginx everywhere.
-Troubles met on passing %ENV variables responsible for CGI input, most of them concern POST requests: the HTTP_ prefix for *CONTENT_* and undescendence of configuration context with fastcgi_param-s.
 
 =over
 
@@ -412,100 +390,17 @@ And, surprise, the response time difference over CGI is dramatically better beca
 
 =back
 
-=head2 The TODOs
-
-=over
-
-=item * %SIG
-
-The UNIX signals processing is on its way in consequent releases.
-At least we should process the USR1 or so to recompile the all of the sources onboard, another signals to recompile only the part of them.
-This should provide the graceful restart feature.
-
-=item * CGI
-
-it's way hard to adopt to CGI::Fast's BEGIN block.
-Gonna skip it out with CGI::Minimal.
-Should be even cooler to replace CGI.pm with XS alternate.
-
-=item * DBI
-
-Should be nice to overload DBI like the Apache::DBI does.
-
-=item * Adoptable forks number
-
-Should be nice to variate the n_processes due to the average system load, rest of the free RAM, etc.
-
-=item * RC (init) script 
-
-FCGI::ProcManager is able to put its pid file where you should need it.
-RC and/or SMF startup scripts  and packages for the particular OS are the "Right Thing" (tm). :-)
-
-=item * Frameworks compliance
-
-Bring FCGI::ProcManager improvements like max_requests into complex applications with their own daemons like Catalyst.
-
-=item * Lightweight cache for objects that CGI scripts may use.
-
-Cache things those are not necessary to be reloaded on every request even if it is to be done with CGI.
-Those should be objects like XSLT processors created from the permanenmtly stored XSL stylesheet file so the program can remain CGI-compliant as such a cache is not mandatory but can be enhanced with this feature to get more performance under FCGI::Spawn with no need in additional daemons like Memcached and requirement for them to be able to keep native objects ( which the XML/XSL document and XSLT processor are).
-
-=item * Namespace cleaning
-
-Service should take care of cleaning the variables from namespaces other than %main:: .
-This is the only thing that is left to do to get Bugzilla with FastCGI that is officially not possible.
-
-=item * Test with other HTTP servers ( FastCGI requesters )
-
-Any aside help would be appreciated.
-
-=item * Hosting panels integration
-
-Free software forking/branching is an obvious stuff, hosting panels are not exclusion, at least those of them which are free software.
-I'm absolutely sure CGI speedup is wanted by clients as well as unloading the hosting server's CPUs from Perl compilation/exec on every request for servers' administrators.
-
-=item * Debugging
-
-On a developer's machine it is nothing impossible to make debugging the same standard way as perldoc perldebug states, especially with n_processes => 0.
-It's not yet in because the CGI::Fast redefines STD* handles upon every request.
-It makes things easy but should be more tweakable.
-
-=item * Compile the modules cache on the first request
-
-Should be obvious for developer's host to keep from compiling each and every module on startup if it is known that developer will take on different tasks through all of the uptime.
-But during the uptime ( work hours ) YMMV about the need in FCGI::Spawn-served application(s) and they can appear to be used.
- So the idea is to evaluate some modules inclusion upon the first request, perform it without fork(), and share the compile cache later among forks.
-This will save some memory on a developer's machine with no need to change daemon settings and start it again.
-
-=item * Inactivity timeout
-
-Happens on a developer's machine when the application server is not used for a some uptime's while.
-It is nothing impossible to free the memory for other applications on the same system.
-
-=item * Resources limiting
-
-can be still done with daemontools or ulimit, but there are those specific realized in php, like the time_limit.
-Anyway, the memory_limit feature should be easy to make.
-
-=back
-
 =head2 Downloads
 
 Tar.gz at CPAN, as always.
 
-Sourceforge has latest development snapshot: http://fcgi-spawn.git.sourceforge.net/git/gitweb.cgi?p=fcgi-spawn/fcgi-spawn;a=snapshot;h=HEAD;sf=tgz .
-
-=head2 Thanks
-
-SkyRiver Studios for original fund of Perl(bugzilla) deployment on high loaded system.
-
-Yuri@Reunion and MoCap.Ru for use cases, study review and suggestions on improvement.
+Sourceforge has latest development snapshot: L<http://fcgi-spawn.git.sourceforge.net/git/gitweb.cgi?p=fcgi-spawn/fcgi-spawn;a=snapshot;h=HEAD;sf=tgz> .
 
 =head1 AUTHOR, LICENSE
 
-Peter Vereshagin <peter@vereshagin.org>, http://vereshagin.org.
+Peter Vereshagin <peter@vereshagin.org>, L<http://vereshagin.org>.
 
-License: same as FCGI::ProcManager's one.
+License: same as FCGI::ProcManager's one. More info on FCGI::Spawn at: L<http://fcgi-spawn.sf.net>.
 
 =cut
 
@@ -522,6 +417,8 @@ our @EXPORT_OK = qw/statnames_to_policy/;
 our $fcgi = undef;
 my %xinc = ();
 
+my $maxlength=100000;
+
 BEGIN {
 	die "CGI::Fast made its own BEGIN already!" if defined $INC{'CGI/Fast.pm'};
 	$ENV{FCGI_SOCKET_PATH} = '/tmp/spawner.sock' if not exists $ENV{FCGI_SOCKET_PATH};
@@ -536,9 +433,9 @@ BEGIN {
 }
 
 my $readchunk=4096;
-my $maxlength=100000;
 
-sub plsrc {
+# Deprecated and will be removed in future versions. And readchunk too.
+sub plsrc { 
 	my $sn = shift;
 	unless( open PLSRC, $sn ){ exit $!; }
 	my $plsrc="";
@@ -639,7 +536,7 @@ sub clean_inc_particular {
 
 sub prepare {
 	my $self = shift;
-	my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
+	my $proc_manager = $self->{ proc_manager };
 	$proc_manager->pm_manage();
 	$self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
 	$self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
