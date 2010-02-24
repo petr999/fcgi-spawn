@@ -3,6 +3,13 @@
 
 package main;
 
+use vars qw($VERSION);
+BEGIN {
+  $VERSION = '0.16.1';
+  $FCGI::Spawn::Default = 'FCGI::Spawn';
+}
+
+
 =pod
 
 =head1 NAME
