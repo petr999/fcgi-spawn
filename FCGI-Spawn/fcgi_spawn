@@ -126,6 +126,8 @@ Bugzilla's own request cache cleans only if the mod_perl is used specifically. S
 
 As an evil of L<Date::Manip|Date::Manip> ( I myself hate it too, since the C<DateTime.pm> infrastructure is much better ), and thus the WebGUI.org too, the Bugzilla can make your system commands unavailable from your applications on your PATH environment variable. This is why you should also enable the C<save_env> feature on C<fcgi_spawn.conf>, if it is not enabled in L<FCGI::Spawn|FCGI::Spawn> by default.
 
+Also, in some cases the Bugzilla's CGI programs use to take $0 instead of $ENV{ SCRIPT_NAME } which makes the URLs generated pointless.
+
 =back
 
 Demo is located at:

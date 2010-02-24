@@ -253,6 +253,11 @@ If use C<fcgi_spawn>, you must define your own callout with exit() redefinition 
 should the %ENV ( environment variables ) be restored after every callout.
 Default: 1.
 
+=item * save_zero
+
+should the $0 ( executed file name in the OS process list ) be set to SCRIPT_FILENAME or SCRIPT_NAME environment variables before and restored after every callout.
+Default: 1.
+
 =back
 
 Every other parameter is passed "as is" to the FCGI::ProcManager's constructor.
@@ -462,6 +467,7 @@ my $defaults = {
 	state	=> {},
 	seed_rand => 1,
 	save_env => 1,
+	save_zero => 1,
 	is_prepared => 0,
 };
 
@@ -515,7 +521,14 @@ sub make_clean_inc_subnamespace {
 sub _callout {
 	my $self = shift;
 	my %save_env = %ENV if $self->{ save_env };
+	my $save_zero;
+	if( $self->{ save_zero } ){
+		$save_zero = $0; $0 = $ENV{ SCRIPT_FILENAME }
+			? $ENV{ SCRIPT_FILENAME } : $ENV{ SCRIPT_NAME }
+		;
+	}
 	$self->{callout}->( @_ );
+	$0 = $save_zero if $self->{ save_zero };
 	%ENV = %save_env if $self->{ save_env };
 }
 sub callout {
