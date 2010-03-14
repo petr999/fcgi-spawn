@@ -1,4 +1,7 @@
-#!/usr/bin/perl
+#!/usr/local/bin/perl
+
+eval 'exec /usr/local/bin/perl  -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
 
 
 package main;
@@ -87,6 +90,16 @@ Should be contained in the code reference supplied as a L<callout|FCGI::Spawn/ne
 
 =back
 
+=item $OURS
+
+Hash reference to keep scalar variables in between preload eval()s. Those are to be restored in preload scripts like this:
+
+				map{ ${ $main::{ $_ } }
+				  		= $OURS->{  $_ } ;
+				} qw/webguiRoot bugzillaRoot skybillRoot/;
+
+=back
+
 All of the preload scripts, if any exist, are eval()'ed after the C<$spawn> is initialized with the values from:
 
 =head2 Configuration File
@@ -158,6 +171,7 @@ LGPL, as of the MANIFEST file in L<FCGI::Spawn|FCGI::Spawn>'s CPAN distribution.
 use strict;
 use warnings;
 
+our $OURS = {};
 my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, ); my $preload = 0;
 
 unless( scalar @ARGV ){ print "Usage help: $0 -h\n"; CORE::exit;
@@ -186,6 +200,7 @@ BEGIN{
 			if( 'FCGI::ProcManager' eq scalar caller ){
 				CORE::exit @_;
 			} else {
+				no warnings;
 				last CALLED_OUT;
 			}
 		};
@@ -221,6 +236,7 @@ sub re_open_log{
   open STDIN, '/dev/null'   or die "Can't read /dev/null: $!";
 }
 
+my $saved_stderr = *STDERR;
 re_open_log $log_file;
 $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
 
@@ -322,6 +338,7 @@ if( $preload ){
   } @{ $preloaders->{ prepared } };
 }
 
+*STDERR = $saved_stderr;
 
 $spawn -> spawn; 
 
