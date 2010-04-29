@@ -589,7 +589,7 @@ sub get_inc_stats{
 	my %inc_state = (); 
 	my $fns = [ defined( $stat_src ) ? keys( %$stat_src ) :  values %INC ];
 	foreach my $src_file ( @$fns ){
-		next unless -f $src_file;
+		next unless defined( $src_file ) and -f $src_file;
 		my $stat = [ stat $src_file ]; 
 		$inc_state{ $src_file } = $stat;  
 	}
