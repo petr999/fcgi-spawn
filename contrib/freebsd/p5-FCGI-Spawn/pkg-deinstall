@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# $FreeBSD$
+# $FreeBSD: ports/www/p5-FCGI-Spawn/pkg-deinstall,v 1.1 2010/04/14 13:58:52 skreuzer Exp $
 #
 
 if [ "$2" != "POST-DEINSTALL" ]; then

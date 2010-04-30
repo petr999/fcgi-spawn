@@ -2,7 +2,7 @@
 # Date created:		2007-12-28
 # Whom:			Peter <peter@vereshagin.org>
 #
-# $FreeBSD$
+# $FreeBSD: ports/www/p5-FCGI-Spawn/Makefile,v 1.6 2010/04/14 13:48:02 skreuzer Exp $
 #
 
 PORTNAME=	FCGI-Spawn
