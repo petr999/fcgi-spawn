@@ -94,9 +94,9 @@ Should be contained in the code reference supplied as a L<callout|FCGI::Spawn/ne
 
 Hash reference to keep scalar variables in between preload eval()s. Those are to be restored in preload scripts like this:
 
-				map{ ${ $main::{ $_ } }
-				  		= $OURS->{  $_ } ;
-				} qw/webguiRoot bugzillaRoot skybillRoot/;
+        map{ ${ $main::{ $_ } }
+              = $OURS->{  $_ } ;
+        } qw/webguiRoot bugzillaRoot skybillRoot/;
 
 =back
 
@@ -177,42 +177,42 @@ my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, ); my $pr
 unless( scalar @ARGV ){ print "Usage help: $0 -h\n"; CORE::exit;
 }
 while( my $arg0 = shift @ARGV ){
-	if			( $arg0 eq '-c' 	){ $config_path 					= shift @ARGV;
-	} elsif	( $arg0 eq '-p' 	){ $pid_file 							= shift @ARGV;
-	} elsif	( $arg0 eq '-l' 	){ $log_file 							= shift @ARGV;
-	} elsif	( $arg0 eq '-u' 	){ $user 									= shift @ARGV;
-	} elsif	( $arg0 eq '-g' 	){ $group 								= shift @ARGV;
-	} elsif	( $arg0 eq '-s' 	){ $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
-	} elsif	( $arg0 eq '-e' 	){ $redefine_exit = 1;
-	} elsif	( $arg0 eq '-pl' 	){ $preload = 1;
-	} elsif	( grep { $arg0 eq $_ }( '-h', '-?', ) ){
-		print "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
-					."\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
-					."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n";
-		CORE::exit;
-	}
+  if      ( $arg0 eq '-c'   ){ $config_path           = shift @ARGV;
+  } elsif  ( $arg0 eq '-p'   ){ $pid_file               = shift @ARGV;
+  } elsif  ( $arg0 eq '-l'   ){ $log_file               = shift @ARGV;
+  } elsif  ( $arg0 eq '-u'   ){ $user                   = shift @ARGV;
+  } elsif  ( $arg0 eq '-g'   ){ $group                 = shift @ARGV;
+  } elsif  ( $arg0 eq '-s'   ){ $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
+  } elsif  ( $arg0 eq '-e'   ){ $redefine_exit = 1;
+  } elsif  ( $arg0 eq '-pl'   ){ $preload = 1;
+  } elsif  ( grep { $arg0 eq $_ }( '-h', '-?', ) ){
+    print "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
+          ."\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
+          ."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n";
+    CORE::exit;
+  }
 }
 
 BEGIN{
   $ENV{FCGI_SOCKET_PATH} = "/tmp/spawner.sock" unless defined $ENV{FCGI_SOCKET_PATH};
-	if( grep { '-e' eq $_  } @ARGV ){
-		my $cref = sub {
-			if( 'FCGI::ProcManager' eq scalar caller ){
-				CORE::exit @_;
-			} else {
-				no warnings;
-				last CALLED_OUT;
-			}
-		};
-		*CORE::GLOBAL::exit = $cref;
-		*CORE::GLOBAL::exit;
-	}
+  if( grep { '-e' eq $_  } @ARGV ){
+    my $cref = sub {
+      if( 'FCGI::ProcManager' eq scalar caller ){
+        CORE::exit @_;
+      } else {
+        no warnings;
+        last CALLED_OUT;
+      }
+    };
+    *CORE::GLOBAL::exit = $cref;
+    *CORE::GLOBAL::exit;
+  }
 }
 
 use POSIX qw/setuid setgid setsid/;
 
 if( $redefine_exit ){
-	use subs qw/exit/ ;
+  use subs qw/exit/ ;
 }
 
 
@@ -224,19 +224,22 @@ if( $pid ){
     open( PIDF, ">$pid_file" ) or die "Writing $pid_file: $!";
     print PIDF "$pid\n"; close PIDF;
   }
-	CORE::exit;
+  CORE::exit;
 }
 
 
 sub re_open_log{
-	my $log_file = shift;
-  close FCGI_SPAWN_LOG if defined fileno FCGI_SPAWN_LOG;
-  open( FCGI_SPAWN_LOG, ">>$log_file" ) or die "Opening log $log_file: $!";
-  *STDOUT = *FCGI_SPAWN_LOG; *STDERR = *FCGI_SPAWN_LOG;
+  my $log_file = shift;
+  close STDERR if defined fileno STDERR;
+  close STDOUT if defined fileno STDOUT;
+  open( STDERR, ">>$log_file" ) or die "Opening log $log_file: $!";
+  open( STDOUT, ">>$log_file" ) or die "Opening log $log_file: $!";
   open STDIN, '/dev/null'   or die "Can't read /dev/null: $!";
 }
 
-my $saved_stderr = *STDERR;
+#my $saved_stderr = *STDERR;
+#*STDERR = $saved_stderr;
+#open( STDERR, '>/tmp/fout.txt' ) or die $!;
 re_open_log $log_file;
 $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
 
@@ -244,16 +247,16 @@ $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
 defined( my $spawn_pid = fork ) or die "Forking spawn: $!";
 if( $spawn_pid ){
   map{ my $signal = $_; $SIG{ $signal } = sub{
-		kill $signal, $spawn_pid ; 
-		#	if( $signal eq 'TERM' ){
-		#		CORE::exit ; 
-		#	}
-	};
+    kill $signal, $spawn_pid ; 
+    #  if( $signal eq 'TERM' ){
+    #    CORE::exit ; 
+    #  }
+  };
   } qw/HUP TERM/;
-	$0 = 'fcgi_spawn';
-	waitpid $spawn_pid, 0;
-	unlink $pid_file;
-	CORE::exit;
+  $0 = 'fcgi_spawn';
+  waitpid $spawn_pid, 0;
+  unlink $pid_file;
+  CORE::exit;
 }
 
 my $gid = getgrnam( $group ); die "Get group $group: $!" if $gid == 0; 
@@ -268,15 +271,15 @@ setsid or die "Setting session: $!";
 my $config_file = "$config_path/fcgi_spawn.conf"; my $conf = {};
 open( FCGI_CONFIG, "<$config_file" ) or die "Opening $config_file: $!";
 while( <FCGI_CONFIG> ){
-	next if /^\s*(#|$)/;
-	chomp; s/^\s+//g;
-	if( my( $key, @val ) = split /\s+/, $_ ){
-		if( 1 < scalar @val  ){
-			$conf->{ $key } = \@val ;
-		} else {
-			$conf->{ $key } = shift @val ;
-		}
-	}
+  next if /^\s*(#|$)/;
+  chomp; s/^\s+//g;
+  if( my( $key, @val ) = split /\s+/, $_ ){
+    if( 1 < scalar @val  ){
+      $conf->{ $key } = \@val ;
+    } else {
+      $conf->{ $key } = shift @val ;
+    }
+  }
 }
 close FCGI_CONFIG;
 
@@ -290,33 +293,33 @@ my $preloaders = { nonprepared => [], prepared => [], };
 if( $preload ){
   opendir( my $preloaders_dh, $config_path ) or die "Opening path $config_path: $!";
   while( my $fn = readdir $preloaders_dh ){
-  	next if grep { $_ eq $fn } qw/. ../;
-		my $full_fn = join '/', $config_path, $fn;
-		next unless -f $full_fn;
-  	push( @{ $preloaders->{ nonprepared  } }, $full_fn ) if $fn =~ /^preload_nonprepared_\d+\.pl$/;
-  	push( @{ $preloaders->{ prepared  } }, 		$full_fn ) if $fn =~ /^preload_prepared_\d+\.pl$/;
+    next if grep { $_ eq $fn } qw/. ../;
+    my $full_fn = join '/', $config_path, $fn;
+    next unless -f $full_fn;
+    push( @{ $preloaders->{ nonprepared  } }, $full_fn ) if $fn =~ /^preload_nonprepared_\d+\.pl$/;
+    push( @{ $preloaders->{ prepared  } },     $full_fn ) if $fn =~ /^preload_prepared_\d+\.pl$/;
   }
   closedir $preloaders_dh;
 
 
   map{
-  	$preloaders->{ $_  } = [
-  		map{
-  			my $str = '';
-  			open( PRELOADER, "<$_" ) or die "Open $_: $!";
-  			while( <PRELOADER> ){
-  			  $str .= $_; 
-  			}
-  			close PRELOADER;
-  			$str;
-  		} sort { 
-  			my( $anum, $bnum ) = map{
-  				my $c = $_; $c =~ s/[^\d]//g;
-  				$c;
-  			} ( $a, $b );
-  			$anum <=> $bnum;
-  		} @{ $preloaders->{ $_  } }
-  	];
+    $preloaders->{ $_  } = [
+      map{
+        my $str = '';
+        open( PRELOADER, "<$_" ) or die "Open $_: $!";
+        while( <PRELOADER> ){
+          $str .= $_; 
+        }
+        close PRELOADER;
+        $str;
+      } sort { 
+        my( $anum, $bnum ) = map{
+          my $c = $_; $c =~ s/[^\d]//g;
+          $c;
+        } ( $a, $b );
+        $anum <=> $bnum;
+      } @{ $preloaders->{ $_  } }
+    ];
   } keys %$preloaders;
   
   
@@ -330,15 +333,15 @@ $spawn -> prepare;
 
 if( $preload ){
   map{ eval $_; if( $@ ){
-			warn "$@\nterminating PM pid $spawn_pid";
-			kill 'TERM', $spawn_pid;
-			waitpid $spawn_pid, 0;
-			die $@; # should not happen;
-		}
+      warn "$@\nterminating PM pid $spawn_pid";
+      kill 'TERM', $spawn_pid;
+      waitpid $spawn_pid, 0;
+      die $@; # should not happen;
+    }
   } @{ $preloaders->{ prepared } };
 }
 
-*STDERR = $saved_stderr;
+#*STDERR = $saved_stderr;
 
 $spawn -> spawn; 
 

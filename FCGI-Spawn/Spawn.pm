@@ -444,6 +444,7 @@ my $defaults = {
   save_env => 1,
   procname => 1,
   is_prepared => 0,
+  use_cgi => 0,
 };
 
 sub statnames_to_policy {
@@ -461,33 +462,32 @@ sub new {
   } else {
     $properties = $defaults;
   }
+
+
   if( defined $properties->{use_cgi} and $properties->{use_cgi} ){
-    eval{ require CGI; require CGI::Fast; 1; 
-    } or die $!;
+    eval{ require CGI; require CGI::Fast; 
+    1; } or die $!;
   } else {
-    eval{ require FCGI; 1; 
-    } or die $!;
+    eval{ require FCGI; 
+    1; } or die $!;
+    # if( defined( $ENV{FCGI_SOCKET_PATH} ) ){
+      my $path = $ENV{FCGI_SOCKET_PATH};
+      my $backlog = $ENV{FCGI_LISTEN_QUEUE} || 100;
+      my $socket  = FCGI::OpenSocket( $path, $backlog );
+      my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
+            \%ENV, $socket, 1 );
+      if( defined $properties->{sock_chown} ){
+        chown( @{ $properties->{sock_chown} }, $path )
+        or die $!;
+      }
+      if( defined $properties->{sock_chmod} ){
+        chmod( $properties->{sock_chmod}, $path )
+        or die $!;
+      }
+      $properties->{ request } = $request;
+    # }
   }
   my $proc_manager = FCGI::ProcManager->new( $properties );
-
-  # if( defined( $ENV{FCGI_SOCKET_PATH} ) ){
-    my $path = $ENV{FCGI_SOCKET_PATH};
-    my $backlog = $ENV{FCGI_LISTEN_QUEUE} || 100;
-    my $socket  = FCGI::OpenSocket( $path, $backlog );
-    my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
-          \%ENV, $socket, 1 );
-    if( defined $properties->{sock_chown} ){
-      chown( @{ $properties->{sock_chown} }, $path )
-      or die $!;
-    }
-    if( defined $properties->{sock_chmod} ){
-      chmod( $properties->{sock_chmod}, $path )
-      or die $!;
-    }
-    $properties->{ request } = $request;
-  # }
-
-
 
   defined $properties->{maxlength} and $maxlength = $properties->{maxlength};
 
