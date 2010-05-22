@@ -601,15 +601,21 @@ sub delete_inc_by_value{
     delete $INC{ $key } if $value eq $module;
   }
 }
+sub cgi_reset_globals{
+    CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
+}
 sub postspawn_dispatch {
   my $self = shift;
   $self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
   $self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
+  if( defined $INC{'CGI.pm'} ){
+    __PACKAGE__->cgi_reset_globals;
+  }
 }
 sub prespawn_dispatch {
   my ( $self, $sn ) = @_;
   if( defined $self->{use_cgi} and $self->{use_cgi} ){
-    eval{ CGI->_reset_globals; 1; } or die $!; # to get rid of CGI::save_request consequences
+    __PACKAGE__->cgi_reset_globals;
   }
   delete $INC{ $sn } if exists( $INC{ $sn } ) and $self->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
   #map { delete $INC{ $_ } if not exists $fcgi_spawn_inc{ $_ } } keys %INC 
