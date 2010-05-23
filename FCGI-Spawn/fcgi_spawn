@@ -254,7 +254,10 @@ if( $spawn_pid ){
   };
   } qw/HUP TERM/;
   $0 = 'fcgi_spawn';
-  waitpid $spawn_pid, 0;
+  my $rv;
+  do{
+    $rv = waitpid $spawn_pid, 0;
+  } while $rv <= 0;
   unlink $pid_file;
   CORE::exit;
 }
