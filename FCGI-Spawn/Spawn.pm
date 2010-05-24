@@ -414,18 +414,6 @@ my %xinc = ();
 
 my $maxlength=100000;
 
-BEGIN {
-  die "CGI::Fast made its own BEGIN already!" if defined $INC{'CGI/Fast.pm'};
-  $ENV{FCGI_SOCKET_PATH} = '/tmp/spawner.sock' if not exists $ENV{FCGI_SOCKET_PATH};
-  if( -e $ENV{FCGI_SOCKET_PATH} ){
-    (
-      [ -S $ENV{FCGI_SOCKET_PATH} ]
-      &&
-      unlink $ENV{FCGI_SOCKET_PATH}
-    )  or die "Exists ".$ENV{FCGI_SOCKET_PATH}.": not a socket or unremoveable";
-  }
-}
-
 my $defaults = { 
   n_processes => 5,
   max_requests =>  20,
@@ -444,7 +432,11 @@ my $defaults = {
   save_env => 1,
   procname => 1,
   is_prepared => 0,
-  use_cgi => 0,
+  use_cgi_fast => 0,
+  use_cgi => 1,
+  sock_name => '/tmp/spawner.sock',
+  sock_queue => 100, # default from CGI::Fast
+  keep_socket => 0,
 };
 
 sub statnames_to_policy {
@@ -454,49 +446,83 @@ sub statnames_to_policy {
   : [ map( { $policies{ $_ } } @_ ) ];
 }
 
+sub unlink_socket{
+  my $sock_name = shift;
+  if( -e $sock_name ){
+    (
+      [ -S $sock_name ]
+      &&
+      unlink $sock_name
+    )  or die "Exists $sock_name: not a socket or unremoveable";
+  }
+}
+sub sock_change{
+  my $self = shift;
+  my $sock_name = $self->{ sock_name };
+  if( defined $self->{sock_chown} ){
+    chown( @{ $self->{sock_chown} }, $sock_name )
+    or die $!;
+  }
+  if( defined $self->{sock_chmod} ){
+    chmod( $self->{sock_chmod}, $sock_name )
+    or die $!;
+  }
+}
 sub new {
   my $class = shift;
   my( $new_properties, $properties );
   if( $properties = shift ){
+    $defaults->{ callout } = sub{
+      my $fcgi = $_[ 1 ];
+      do shift;
+    } if defined( $properties->{ use_cgi_fast } ) and $properties->{ use_cgi_fast };
     $properties = { %$defaults, %$properties };
   } else {
     $properties = $defaults;
   }
-
-
-  if( defined $properties->{use_cgi} and $properties->{use_cgi} ){
-    eval{ require CGI; require CGI::Fast; 
-    1; } or die $!;
+  die "CGI::Fast made its own BEGIN already!"
+    if defined( ${ $main::{'CGI::'} }{ 'Fast::' } )
+      or defined $INC{'CGI/Fast.pm'};
+  my $sock_name = $properties->{ sock_name };
+  my $sock_queue = $properties->{ sock_queue };
+  &unlink_socket( $sock_name ) unless $properties->{ keep_socket };
+  if( defined $properties->{ use_cgi_fast } and $properties->{ use_cgi_fast } ){
+    $ENV{FCGI_SOCKET_PATH} = $sock_name;
+    $ENV{FCGI_LISTEN_QUEUE} = $sock_queue;
+    eval( " require CGI::Fast; 1;" ) or die "$@ $!";
   } else {
     eval{ require FCGI; 
     1; } or die $!;
-    # if( defined( $ENV{FCGI_SOCKET_PATH} ) ){
-      my $path = $ENV{FCGI_SOCKET_PATH};
-      my $backlog = $ENV{FCGI_LISTEN_QUEUE} || 100;
-      my $socket  = FCGI::OpenSocket( $path, $backlog );
-      my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
-            \%ENV, $socket, 1 );
-      if( defined $properties->{sock_chown} ){
-        chown( @{ $properties->{sock_chown} }, $path )
-        or die $!;
-      }
-      if( defined $properties->{sock_chmod} ){
-        chmod( $properties->{sock_chmod}, $path )
-        or die $!;
-      }
-      $properties->{ request } = $request;
-    # }
+    my $socket  = FCGI::OpenSocket( $sock_name, $sock_queue );
+    my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
+          \%ENV, $socket, 1 );
+    $properties->{ request } = $request;
+  }
+  if( defined $properties->{ use_cgi } and $properties->{ use_cgi } ){
+    eval{ require CGI;
+    1; } or die $!;
   }
   my $proc_manager = FCGI::ProcManager->new( $properties );
-
   defined $properties->{maxlength} and $maxlength = $properties->{maxlength};
-
   $class->make_clean_inc_subnamespace( $properties );
-
   $properties->{proc_manager} = $proc_manager;
-  bless $properties, $class;
+  my $self = bless $properties, $class;
+  $self->sock_change; 
+  $self->assign_acceptor;
+  return $self;
 }
-
+sub assign_acceptor{
+  my $self = shift;
+  my $use_cgi_fast = $self->{ use_cgi_fast };
+  if( $use_cgi_fast ){
+    $self->{ acceptor } = sub{ $fcgi = CGI::Fast->new } ;
+  } else {
+    $self->{ acceptor } = sub{
+      my $request = $self->{ request };
+      $request->Accept == 0;
+    };
+  }
+}
 sub make_clean_inc_subnamespace {
   my( $self, $properties ) = @_;
   my $cisns = $properties->{ clean_inc_subnamespace };
@@ -552,9 +578,10 @@ sub spawn {
   $self->prepare unless $self->{ is_prepared };
   my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
   my $req_count=0;
-  my $use_cgi = $self->{ use_cgi };
-  my $request = $self->{ request } unless $use_cgi;
-  while( $use_cgi ? ( $fcgi = new CGI::Fast ) : ( $request->Accept == 0 ) ) {
+  my $use_cgi_fast = $self->{ use_cgi_fast };
+  my $request = $self->{ request } unless $use_cgi_fast;
+  $self->cgi_reset_globals;
+  while( $self->{ acceptor }->() ) {
     $proc_manager->pm_pre_dispatch();
     my $sn = $ENV{SCRIPT_FILENAME};
     my $dn = dirname $sn;
@@ -572,7 +599,7 @@ sub spawn {
     CORE::exit if $req_count > $max_requests;
     $self->postspawn_dispatch;
      $proc_manager->pm_post_dispatch();
-    undef $fcgi; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
+    undef( $fcgi ) if $use_cgi_fast; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
   }
 }
 sub get_inc_stats{
@@ -602,21 +629,19 @@ sub delete_inc_by_value{
   }
 }
 sub cgi_reset_globals{
+  my $self = shift;
+  if( $self->{ use_cgi } && not $self->{ use_cgi_fast } ){
     CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
+  }
 }
 sub postspawn_dispatch {
   my $self = shift;
   $self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
   $self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
-  if( defined $INC{'CGI.pm'} ){
-    __PACKAGE__->cgi_reset_globals;
-  }
+  $self->cgi_reset_globals;
 }
 sub prespawn_dispatch {
   my ( $self, $sn ) = @_;
-  if( defined $self->{use_cgi} and $self->{use_cgi} ){
-    __PACKAGE__->cgi_reset_globals;
-  }
   delete $INC{ $sn } if exists( $INC{ $sn } ) and $self->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
   #map { delete $INC{ $_ } if not exists $fcgi_spawn_inc{ $_ } } keys %INC 
   if( $self->{clean_inc_hash} == 2 ){ #if %INC change is unwanted at all
