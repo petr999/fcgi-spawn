@@ -172,7 +172,8 @@ use strict;
 use warnings;
 
 our $OURS = {};
-my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, ); my $preload = 0;
+my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
+my( $preload, $no_detach ) = ( 0, 0, );
 
 unless( scalar @ARGV ){ print "Usage help: $0 -h\n"; CORE::exit;
 }
@@ -185,10 +186,12 @@ while( my $arg0 = shift @ARGV ){
   } elsif  ( $arg0 eq '-s'   ){ $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
   } elsif  ( $arg0 eq '-e'   ){ $redefine_exit = 1;
   } elsif  ( $arg0 eq '-pl'   ){ $preload = 1;
+  } elsif  ( $arg0 eq '-nd'   ){ $no_detach = 1;
   } elsif  ( grep { $arg0 eq $_ }( '-h', '-?', ) ){
     print "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
           ."\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
-          ."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n";
+          ."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n"
+          ."\t-nd\t\tdo not detach from console\n";
     CORE::exit;
   }
 }
@@ -216,7 +219,13 @@ if( $redefine_exit ){
 }
 
 
-
+sub sig_handle{
+  my( $sig, $pid ) = @_;
+  return sub{
+    $sig = ( $sig eq 'INT' ) ? 'TERM' : $sig ;
+    kill $sig, $pid ; 
+  };
+}
 
 defined( my $pid = fork ) or die "Forking logger: $!";
 if( $pid ){
@@ -224,9 +233,13 @@ if( $pid ){
     open( PIDF, ">$pid_file" ) or die "Writing $pid_file: $!";
     print PIDF "$pid\n"; close PIDF;
   }
+  if( $no_detach ){
+    map{ my $signal = $_; $SIG{ $signal } = sig_handle( $signal, $pid );
+    } qw/INT HUP TERM/;
+    waitpid( $pid, 0 );
+  }
   CORE::exit;
 }
-
 
 sub re_open_log{
   my $log_file = shift;
@@ -237,22 +250,16 @@ sub re_open_log{
   open STDIN, '/dev/null'   or die "Can't read /dev/null: $!";
 }
 
-#my $saved_stderr = *STDERR;
-#*STDERR = $saved_stderr;
-#open( STDERR, '>/tmp/fout.txt' ) or die $!;
-re_open_log $log_file;
-$SIG{ USR1 } = sub{ re_open_log( $log_file ); };
+unless( $no_detach ){
+  re_open_log $log_file;
+  $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
+}
 
 
 defined( my $spawn_pid = fork ) or die "Forking spawn: $!";
 if( $spawn_pid ){
-  map{ my $signal = $_; $SIG{ $signal } = sub{
-    kill $signal, $spawn_pid ; 
-    #  if( $signal eq 'TERM' ){
-    #    CORE::exit ; 
-    #  }
-  };
-  } qw/HUP TERM/;
+  map{ my $signal = $_; $SIG{ $signal } = sig_handle( $signal, $spawn_pid );
+  } qw/INT HUP TERM/;
   $0 = 'fcgi_spawn';
   my $rv;
   do{
