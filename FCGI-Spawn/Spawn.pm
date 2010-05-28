@@ -437,6 +437,8 @@ my $defaults = {
   sock_name => '/tmp/spawner.sock',
   sock_queue => 100, # default from CGI::Fast
   keep_socket => 0,
+  stats_reload_method => [ qw/reload_symtable_by_module/ ],
+  reload_failover => 0,
 };
 
 sub statnames_to_policy {
@@ -508,7 +510,28 @@ sub new {
   my $self = bless $properties, $class;
   $self->sock_change; 
   $self->assign_acceptor;
+  $self->assign_reloader;
   return $self;
+}
+sub assign_reloader{
+  my $self = shift;
+  if( defined( $self->{ stats_reload_method  } ) 
+      and ( 'ARRAY' eq $self->{ stats_reload_method } 
+            and @{ $self->{ stats_reload_method } } > 0
+        or (
+          length $self->{ stats_reload_method } 
+        )
+      )
+  ){
+    my $srm = $self->{ stats_reload_method };
+    $srm = [ $srm ] unless ref $srm;
+    my $reloader = 
+      sub{
+        $self->$_( @_ ) foreach @$srm;
+      }
+    ;
+    $self->{ reloader } = $reloader;
+  }
 }
 sub assign_acceptor{
   my $self = shift;
@@ -620,11 +643,51 @@ sub set_state_stats {
   $self->set_state( $stats_name, $stats );
 }
 sub delete_inc_by_value{
+  shift;
   my $module = shift;
   my @keys_arr = keys %INC;
   foreach my $key ( @keys_arr ){
     my $value = $INC{ $key };
     delete $INC{ $key } if $value eq $module;
+  }
+}
+sub reload_symtable_by_module{
+  my $self = shift;
+  my $module = shift;
+  my @keys_arr = keys %INC;
+  foreach my $key ( @keys_arr ){
+    my $value = $INC{ $key };
+    if( $value eq $module ){
+      my $ns = $key;
+      $ns =~ s/\.p[ml]$//g;
+      $ns = [ split /\//, $ns ];
+      if( @$ns > 0 ){
+        #unshift @$ns, 'main';
+        map{ s/$/::/g; } @$ns;
+        my $symtab = \%main::;
+        my $symtab_container = \%main::;
+        my $symtab_key = $ns->[ 0 ];
+        foreach( @$ns ){
+          if( defined $symtab->{ $_ } ){
+            $symtab_key = $_;
+            $symtab_container = $symtab;
+            $symtab = $symtab->{ $_ };
+          } else {
+            last;
+          }
+        }
+        my $rv = eval{ delete $INC{ $key }; require $module;
+        1; };
+        unless( $rv ){
+          if( $self->{ reload_failover } ){
+            $INC{ $key } = $value;
+          } else {
+            #$symtab_container->{ $symtab_key } = $symtab;
+            delete $symtab_container->{ $symtab_key };
+          }
+        }
+      }
+    }
   }
 }
 sub cgi_reset_globals{
@@ -757,7 +820,7 @@ sub clean_inc_modified {
         }
       } 
     }
-    delete_inc_by_value( $module ) if $modified;
+    $self->{ reloader }->( $module ) if $modified;
   }
 }
 sub defined_state{
