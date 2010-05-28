@@ -481,8 +481,7 @@ sub new {
     $properties = $defaults;
   }
   die "CGI::Fast made its own BEGIN already!"
-    if defined( ${ $main::{'CGI::'} }{ 'Fast::' } )
-      or defined $INC{'CGI/Fast.pm'};
+    if defined $CGI::Fast::Ext_Request;
   my $sock_name = $properties->{ sock_name };
   my $sock_queue = $properties->{ sock_queue };
   &unlink_socket( $sock_name ) unless $properties->{ keep_socket };
