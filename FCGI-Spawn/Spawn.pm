@@ -579,8 +579,9 @@ sub clean_inc_particular {
   my $self= shift;
   map { 
     my $subnamespace_to_clean = $_;
-    map { delete $INC{ $_ } } 
-      grep {  $subnamespace_to_clean eq substr $_, 0, length $subnamespace_to_clean  }
+    map { 
+      $self->{ reloader }->( $INC{ $_ } );
+    } grep {  $subnamespace_to_clean eq substr $_, 0, length $subnamespace_to_clean  }
         keys %INC 
   } @{ $self->{ clean_inc_subnamespace  } };
 }
