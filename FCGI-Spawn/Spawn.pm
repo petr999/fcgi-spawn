@@ -405,12 +405,14 @@ use warnings;
 
 use File::Basename;
 use FCGI::ProcManager;
+
+
 use base qw/Exporter/;
 
 our @EXPORT_OK = qw/statnames_to_policy/;
 
 our $fcgi = undef;
-my %xinc = ();
+my %xinc;
 
 my $maxlength=100000;
 
@@ -432,13 +434,14 @@ my $defaults = {
   save_env => 1,
   procname => 1,
   is_prepared => 0,
-  use_cgi_fast => 0,
-  use_cgi => 1,
+  acceptor => 'fcgi',
+  use_cgi => 0,
   sock_name => '/tmp/spawner.sock',
   sock_queue => 100, # default from CGI::Fast
   keep_socket => 0,
   stats_reload_method => [ qw/reload_symtable_by_module/ ],
   reload_failover => 0,
+  mod_perl => 0,
 };
 
 sub statnames_to_policy {
@@ -474,10 +477,6 @@ sub new {
   my $class = shift;
   my( $new_properties, $properties );
   if( $properties = shift ){
-    $defaults->{ callout } = sub{
-      my $fcgi = $_[ 1 ];
-      do shift;
-    } if defined( $properties->{ use_cgi_fast } ) and $properties->{ use_cgi_fast };
     $properties = { %$defaults, %$properties };
   } else {
     $properties = $defaults;
@@ -487,7 +486,7 @@ sub new {
   my $sock_name = $properties->{ sock_name };
   my $sock_queue = $properties->{ sock_queue };
   &unlink_socket( $sock_name ) unless $properties->{ keep_socket };
-  if( defined $properties->{ use_cgi_fast } and $properties->{ use_cgi_fast } ){
+  if( defined $properties->{ acceptor } and ( $properties->{ acceptor } eq 'cgi_fast' ) ){
     $ENV{FCGI_SOCKET_PATH} = $sock_name;
     $ENV{FCGI_LISTEN_QUEUE} = $sock_queue;
     eval( " require CGI::Fast; 1;" ) or die "$@ $!";
@@ -498,6 +497,16 @@ sub new {
     my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
           \%ENV, $socket, 1 );
     $properties->{ request } = $request;
+  }
+  if( defined $properties->{ mod_perl } and $properties->{ mod_perl } ){
+    eval{
+      require CGI; # CGI.pm init may happen here
+      $CGI::MOD_PERL = $properties->{ mod_perl };
+      require FCGI::Spawn::ModPerl;
+	    $mod_perl::VERSION = $properties->{ mod_perl };
+      map{ my $mod = $_; $mod =~ s%::%/%g; $mod .= '.pm'; $INC{ $mod } = $INC{ 'FCGI/Spawn/ModPerl.pm' };
+      } qw/Apache2::Response Apache2::RequestRec Apache2::RequestUtil Apache2::RequestIO APR::Pool/;
+    1; } or die "$@ $!";
   }
   if( defined $properties->{ use_cgi } and $properties->{ use_cgi } ){
     eval{ require CGI;
@@ -535,13 +544,14 @@ sub assign_reloader{
 }
 sub assign_acceptor{
   my $self = shift;
-  my $use_cgi_fast = $self->{ use_cgi_fast };
-  if( $use_cgi_fast ){
+  my $acceptor = $self->{ acceptor };
+  if( $acceptor eq 'cgi_fast' ){
     $self->{ acceptor } = sub{ $fcgi = CGI::Fast->new } ;
-  } else {
+  } else {  # $acceptor eq 'fcgi'
     $self->{ acceptor } = sub{
       my $request = $self->{ request };
-      $request->Accept == 0;
+      my $rv = $request->Accept == 0;
+      return $rv;
     };
   }
 }
@@ -601,22 +611,21 @@ sub spawn {
   $self->prepare unless $self->{ is_prepared };
   my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
   my $req_count=0;
-  my $use_cgi_fast = $self->{ use_cgi_fast };
-  my $request = $self->{ request } unless $use_cgi_fast;
+  my $use_cgi_fast = ( $self->{ acceptor } eq 'cgi_fast' );
   $self->cgi_reset_globals;
-  while( $self->{ acceptor }->() ) {
+  while( $$self{ acceptor }->() ) {
     $proc_manager->pm_pre_dispatch();
     my $sn = $ENV{SCRIPT_FILENAME};
     my $dn = dirname $sn;
     my $bn = basename $sn;
     chdir $dn;
     $self->prespawn_dispatch( $sn );
+      map{ $$_ = $self->{mod_perl};
+      } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, )
+        if $self->{ mod_perl } and not defined $INC{ 'CGI.pm' };
     # Commented code is real sugar for nerds ;)
     #map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
     #  if $ENV{ 'REQUEST_METHOD' } eq 'POST';  # for nginx-0.5
-    # do $sn ; #or print $!.$bn; # should die on unexistent source file
-    #  my $plsrc=plsrc $sn;  # should explanatory not
-    #  eval $$plsrc;
     $self->_callout( $sn, $fcgi );
     $req_count ++;
     CORE::exit if $req_count > $max_requests;
@@ -693,7 +702,8 @@ sub reload_symtable_by_module{
 }
 sub cgi_reset_globals{
   my $self = shift;
-  if( $self->{ use_cgi } && not $self->{ use_cgi_fast } ){
+  if( (  ( $self->{ use_cgi } >=0 ) and defined $INC{ 'CGI.pm' } )
+      and ( $self->{ acceptor } ne 'cgi_fast' ) and not $self->{ mod_perl } ){
     CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
   }
 }
@@ -712,7 +722,7 @@ sub prespawn_dispatch {
     %INC = %$fcgi_spawn_inc ;
   }
   $self->clean_inc_particular;
-  $self->clean_inc_modified if $self->{ stats };
+  $self->clean_inc_modified( $sn ) if $self->{ stats };
   $self->clean_xinc_modified if $self->{ x_stats };
   if( $self->{clean_main_space} ){ # actual cleaning vars
     foreach ( keys %main:: ){ 
@@ -797,7 +807,7 @@ sub clean_xinc_modified {
 }
 
 sub clean_inc_modified {
-  my $self = shift;
+  my( $self, $sn ) = @_;
   my $old_stats = $self->get_state( 'stats' );
   my $new_stats = get_inc_stats;
   my $policy = $self->{ stats_policy };
@@ -821,7 +831,7 @@ sub clean_inc_modified {
         }
       } 
     }
-    $self->{ reloader }->( $module ) if $modified;
+    $self->{ reloader }->( $module ) if $modified and ( $module ne $sn );
   }
 }
 sub defined_state{
