@@ -504,8 +504,9 @@ sub new {
       $CGI::MOD_PERL = $properties->{ mod_perl };
       require FCGI::Spawn::ModPerl;
 	    $mod_perl::VERSION = $properties->{ mod_perl };
-      map{ my $mod = $_; $mod =~ s%::%/%g; $mod .= '.pm'; $INC{ $mod } = $INC{ 'FCGI/Spawn/ModPerl.pm' };
-      } qw/Apache2::Response Apache2::RequestRec Apache2::RequestUtil Apache2::RequestIO APR::Pool/;
+      map{ $$_ = $properties->{mod_perl};
+      } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, );
+      require CGI::Cookie;
     1; } or die "$@ $!";
   }
   if( defined $properties->{ use_cgi } and $properties->{ use_cgi } ){
@@ -620,9 +621,13 @@ sub spawn {
     my $bn = basename $sn;
     chdir $dn;
     $self->prespawn_dispatch( $sn );
+    if( $self->{ mod_perl } ){
+      my $handlers = Apache->request->{ HANDLERS };
+      FCGI::Spawn::ModPerl->new;
+      Apache->request->{ HANDLERS } = $handlers;
       map{ $$_ = $self->{mod_perl};
-      } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, )
-        if $self->{ mod_perl } and not defined $INC{ 'CGI.pm' };
+      } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, );
+    }
     # Commented code is real sugar for nerds ;)
     #map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
     #  if $ENV{ 'REQUEST_METHOD' } eq 'POST';  # for nginx-0.5
@@ -702,15 +707,26 @@ sub reload_symtable_by_module{
 }
 sub cgi_reset_globals{
   my $self = shift;
-  if( (  ( $self->{ use_cgi } >=0 ) and defined $INC{ 'CGI.pm' } )
-      and ( $self->{ acceptor } ne 'cgi_fast' ) and not $self->{ mod_perl } ){
-    CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
+  if( ( $self->{ use_cgi } >=0 )
+        and defined( $INC{ 'CGI.pm' } )
+        and ( $self->{ acceptor } ne 'cgi_fast' ) # CGI::Fast resets by itself
+        and not $self->{ mod_perl }   # Apache::Fake resets by itself
+    ){
+      CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
   }
 }
-sub postspawn_dispatch {
+sub modperl_reset{
+  my $handlers = Apache->request->{ HANDLERS }->{ PerlCleanupHandler };
+  foreach my $handler ( @$handlers ){
+     $handler->( Apache->request ) if defined $handler;
+  }
+  Apache->cleanup_request;
+}
+sub postspawn_dispatch{
   my $self = shift;
   $self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
   $self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
+  $self->modperl_reset if $self->{ mod_perl };
   $self->cgi_reset_globals;
 }
 sub prespawn_dispatch {
