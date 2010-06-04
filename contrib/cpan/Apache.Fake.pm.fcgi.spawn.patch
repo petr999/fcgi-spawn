@@ -1,0 +1,37 @@
+--- Fake.pm.orig
++++ Fake.pm
+@@ -1126,8 +1126,6 @@ sub new
+ 
+     # connection
+     $conf{'ABORTED'} = 0;
+-    $conf{'FD_IN'} = fileno(STDIN);
+-    $conf{'FD_OUT'} = fileno(STDOUT);
+ 
+     # remote ident
+     $conf{'REMOTE_IDENT'} = $conf{'ENV'}{'REMOTE_IDENT'};
+@@ -1265,25 +1263,11 @@ sub new
+        die ($@) if $@;
+     }
+ 
+-    die 'no PerlHandler found, but we have: '.join(keys %$handlers) unless exists $$handlers{'PerlHandler'};
+-
+-    my $eval_string = $$handlers{'PerlHandler'};
+-    if ($eval_string =~ m/->/) {
+-       $eval_string .= '($r)';
+-    } elsif ($eval_string =~ m/^[a-zA-Z_0-9:]+$/) {
+-       $eval_string .= '::handler($r)';
+-    } elsif ($eval_string !~ m/[{&]/) {
+-       die "unknown handler syntax: $eval_string";
+-    }
+ 
+     %ENV = %{$conf{'ENV'}};
+ 
+     #$r->warn("invoking: $eval_string");
+-    my $rc = eval($eval_string);
+     die ($@) if $@;
+-    #$r->warn("rc = $rc");
+-    $r->status($rc) if $rc;
+-    $r->send_http_header;
+ 
+     return $r;
+ }

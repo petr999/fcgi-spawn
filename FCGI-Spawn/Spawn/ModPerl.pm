@@ -74,14 +74,18 @@ use warnings;
 
 my $request;
 
+sub request
+{
+    my ($caller, $r) = @_;
+    $request = $r if defined $r;
+    $request || FCGI::Spawn::ModPerl->new;
+}
 sub pool {
     return shift->request;
 }
-
 sub cleanup_request{
   undef $request;
 }
-
 sub pnotes {
 	my ($self, $key, $value) = @_;
 	if (@_ == 3) {
@@ -101,6 +105,16 @@ sub post_connection {
 *register_cleanup = \&post_connection;
 *cleanup_register = *register_cleanup;
 
+sub headers_in {
+  my ($self, $key) = @_;
+  if (wantarray) {
+    return %{$$self{'HEADERS_IN'}};
+  } elsif (defined $key) {
+    return $$self{'HEADERS_IN'}{ucfirst(lc($key))};
+  } else {
+    my $h = new Apache::Table(($self->headers_in));
+  }
+}
 
 1;
 
@@ -215,5 +229,11 @@ use strict;
 use warnings;
 
 use base qw/ModPerl/;
+
+use FCGI::Spawn::ModPerl;
+
+sub exit{
+  CORE::exit;
+}
 
 1;

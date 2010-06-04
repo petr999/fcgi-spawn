@@ -582,6 +582,13 @@ sub _callout {
 }
 sub callout {
   my $self = shift;
+    if( $self->{ mod_perl } ){
+      my $handlers = Apache->request->{ HANDLERS };
+      FCGI::Spawn::ModPerl->new;
+      Apache->request->{ HANDLERS } = $handlers;
+      map{ $$_ = $self->{mod_perl};
+      } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, );
+    }
   $self->_callout( @_ );
   $self->postspawn_dispatch;
 }
@@ -621,13 +628,6 @@ sub spawn {
     my $bn = basename $sn;
     chdir $dn;
     $self->prespawn_dispatch( $sn );
-    if( $self->{ mod_perl } ){
-      my $handlers = Apache->request->{ HANDLERS };
-      FCGI::Spawn::ModPerl->new;
-      Apache->request->{ HANDLERS } = $handlers;
-      map{ $$_ = $self->{mod_perl};
-      } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, );
-    }
     # Commented code is real sugar for nerds ;)
     #map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
     #  if $ENV{ 'REQUEST_METHOD' } eq 'POST';  # for nginx-0.5

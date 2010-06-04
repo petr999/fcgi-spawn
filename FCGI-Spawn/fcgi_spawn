@@ -1,7 +1,7 @@
-#!/usr/local/bin/perl
+#!/usr/bin/perl
 
-eval 'exec /usr/local/bin/perl  -S $0 ${1+"$@"}'
-    if 0; # not running under some shell
+#eval 'exec /usr/local/bin/perl  -S $0 ${1+"$@"}'
+#    if 0; # not running under some shell
 
 
 package main;
@@ -293,14 +293,17 @@ while( <FCGI_CONFIG> ){
 }
 close FCGI_CONFIG;
 
-eval "use FCGI::Spawn;"; die $@ if $@;
+eval { require FCGI::Spawn; import FCGI::Spawn;
+1; } or die $!;
 
 $conf->{ sock_chmod } = oct( $conf->{ sock_chmod }  )or die "Not a chmod for socket: ". $conf->{ sock_chmod }  ;
 
 my $spawn = FCGI::Spawn->new( $conf, );
+  die "$@ $!" if length( $@ ) or length $!;
 
 my $preloaders = { nonprepared => [], prepared => [], };
 if( $preload ){
+  FCGI::Spawn::ModPerl->new if $spawn->{ mod_perl };
   opendir( my $preloaders_dh, $config_path ) or die "Opening path $config_path: $!";
   while( my $fn = readdir $preloaders_dh ){
     next if grep { $_ eq $fn } qw/. ../;
@@ -310,7 +313,6 @@ if( $preload ){
     push( @{ $preloaders->{ prepared  } },     $full_fn ) if $fn =~ /^preload_prepared_\d+\.pl$/;
   }
   closedir $preloaders_dh;
-
 
   map{
     $preloaders->{ $_  } = [
@@ -331,9 +333,10 @@ if( $preload ){
       } @{ $preloaders->{ $_  } }
     ];
   } keys %$preloaders;
-  
-  
-  map{ eval $_; die $@ if $@;
+
+  map{ @{ $preloaders->{ $_ } } = sort @{ $preloaders->{ $_ } } ;
+  } keys %$preloaders;
+  map{ eval "$_ ; 1;" or die "$_\n $@ $!";
   } @{ $preloaders->{ nonprepared } };
 
 }
