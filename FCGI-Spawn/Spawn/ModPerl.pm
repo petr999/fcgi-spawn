@@ -31,6 +31,7 @@ map{
 map{ my $mod = $_; $mod =~ s%::%/%g; $mod .= '.pm'; $INC{ $mod } = $INC{ $inc_key };
 } qw/Apache2::Response Apache2::RequestRec Apache2::RequestUtil Apache2::RequestIO APR::Pool APR::Table
       Apache2::SizeLimit ModPerl::RegistryLoader ModPerl::Registry Apache2::Const ModPerl ModPerl::Util
+      Apache::Cookie Apache2::Cookie APR::Request APR::Request::Apache2 Apache2::Request
   /;
 
 1;
@@ -39,7 +40,11 @@ package Apache::Request;
 use strict;
 use warnings;
 
-our @ISA = qw/Apache Apache::Connection/;
+use Exporter;
+
+our @ISA = qw/Apache Apache::Connection Exporter/;
+
+our $VERSION = '2.10';
 
 use CGI;
 
@@ -191,6 +196,8 @@ sub server{
 }
 sub add_config{
 }
+sub add_version_component{
+}
 
 1;
 
@@ -204,9 +211,8 @@ package Apache2::Const;
 use strict;
 use warnings;
 
-use base qw/Apache::Constants/;
-
-use constant OK => Apache::Constants::OK;
+use Apache::Constants qw/:common :http/;
+our @ISA = qw/Apache::Constants/;
 
 sub import{
   if( $_[ 0 ] eq '-compile' ){
@@ -233,7 +239,63 @@ use base qw/ModPerl/;
 use FCGI::Spawn::ModPerl;
 
 sub exit{
-  CORE::exit;
+  exit;
 }
+
+1;
+
+package Apache::Cookie;
+use strict;
+use warnings;
+
+use base qw/CGI::Cookie/;
+
+1;
+
+package Apache2::Cookie;
+use strict;
+use warnings;
+
+use base qw/Apache::Cookie/;
+
+1;
+
+package Apache2::RequestRec;
+use strict;
+use warnings;
+
+use base qw/Apache::Request/;
+
+1;
+
+package APR::Request;
+use strict;
+use warnings;
+
+1;
+
+package APR::Request::Apache2;
+use strict;
+use warnings;
+
+use base qw/APR::Request/;
+
+1;
+
+package Apache2::Cookie;
+use strict;
+use warnings;
+
+use base qw/CGI::Cookie/;
+
+1;
+
+package Apache2::Request;
+use strict;
+use warnings;
+
+use base qw/Apache::Request/;
+
+our $VERSION = '2.10';
 
 1;

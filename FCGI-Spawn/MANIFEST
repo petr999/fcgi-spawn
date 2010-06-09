@@ -4,5 +4,6 @@ Makefile.PL
 MANIFEST
 README
 Spawn.pm
+Spawn/ModPerl.pm
 fcgi_spawn
 fcgi_spawn.conf.sample
