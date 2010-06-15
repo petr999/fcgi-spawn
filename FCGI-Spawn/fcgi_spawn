@@ -298,8 +298,8 @@ eval { require FCGI::Spawn; import FCGI::Spawn;
 
 $conf->{ sock_chmod } = oct( $conf->{ sock_chmod }  )or die "Not a chmod for socket: ". $conf->{ sock_chmod }  ;
 
-my $spawn = FCGI::Spawn->new( $conf, );
-  die "$@ $!" if length( $@ ) or length $!;
+my $spawn = FCGI::Spawn->new( $conf, )
+  or die "$@ $!";
 
 my $preloaders = { nonprepared => [], prepared => [], };
 if( $preload ){

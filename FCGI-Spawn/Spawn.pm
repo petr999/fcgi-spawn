@@ -493,9 +493,9 @@ sub new {
   } else {
     eval{ require FCGI; 
     1; } or die $!;
-    my $socket  = FCGI::OpenSocket( $sock_name, $sock_queue );
+    my $socket  = FCGI::OpenSocket( $sock_name, $sock_queue ) or die $!;
     my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
-          \%ENV, $socket, 1 );
+          \%ENV, $socket, 1 ) or die $!;
     $properties->{ request } = $request;
   }
   if( defined $properties->{ mod_perl } and $properties->{ mod_perl } ){
@@ -583,9 +583,10 @@ sub _callout {
 sub callout {
   my $self = shift;
     if( $self->{ mod_perl } ){
-      my $handlers = Apache->request->{ HANDLERS };
+      my $handlers = Apache->request->{ HANDLERS }; #for cleanups assigned on preload
       FCGI::Spawn::ModPerl->new;
       Apache->request->{ HANDLERS } = $handlers;
+      $self->{ saved_handlers } = $handlers; #for modperl_reset
       map{ $$_ = $self->{mod_perl};
       } ( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, );
     }
@@ -710,17 +711,19 @@ sub cgi_reset_globals{
   if( ( $self->{ use_cgi } >=0 )
         and defined( $INC{ 'CGI.pm' } )
         and ( $self->{ acceptor } ne 'cgi_fast' ) # CGI::Fast resets by itself
-        and not $self->{ mod_perl }   # Apache::Fake resets by itself
+        and not $self->{ mod_perl }   # Apache::Fake resets by its handler
     ){
       CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
   }
 }
 sub modperl_reset{
+  my $self = shift;
   my $handlers = Apache->request->{ HANDLERS }->{ PerlCleanupHandler };
   foreach my $handler ( @$handlers ){
      $handler->( Apache->request ) if defined $handler;
   }
   Apache->cleanup_request;
+  Apache->request->{ HANDLERS } = $self->{ saved_handlers };
 }
 sub postspawn_dispatch{
   my $self = shift;

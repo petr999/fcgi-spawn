@@ -31,7 +31,8 @@ map{
 map{ my $mod = $_; $mod =~ s%::%/%g; $mod .= '.pm'; $INC{ $mod } = $INC{ $inc_key };
 } qw/Apache2::Response Apache2::RequestRec Apache2::RequestUtil Apache2::RequestIO APR::Pool APR::Table
       Apache2::SizeLimit ModPerl::RegistryLoader ModPerl::Registry Apache2::Const ModPerl ModPerl::Util
-      Apache::Cookie Apache2::Cookie APR::Request APR::Request::Apache2 Apache2::Request
+      Apache::Cookie Apache2::Cookie APR::Request APR::Request::Apache2 Apache2::Request ModPerl::Const
+      APR::Date Apache2::Upload
   /;
 
 1;
@@ -60,6 +61,7 @@ sub new{
     $r->warn('Upload hooks not implemented') if $options{'UPLOAD_HOOK'};
     $ENV{'TMPDIR'} = $options{'TEMP_DIR'} if $options{'TEMP_DIR'};
     $CGI::MOD_PERL = 0;
+    CGI->_reset_globals;
     my $q = $$r{'CGI'} = new CGI;
     $CGI::MOD_PERL = $cgi_mod_perl;
     $$r{'UPLOADS'} = { map { $_ => undef } grep { my $x; $x = $q->param($_) && ref($x) && fileno($x) } $q->param };
@@ -69,6 +71,16 @@ sub new{
     map{ $r->{ $_ } = {}; } qw/NOTES PNOTES/;
     return $r;
   # $SUPER::new copy end
+}
+sub param { 
+  my $self = shift;
+  my $param = $self->{'CGI'}->param(@_);
+  unless( defined $param ){
+    if( $self->method eq "POST" ){
+      $param = $self->{'CGI'}->url_param(@_);
+    }
+  }
+  return $param;
 }
 
 1;
@@ -90,6 +102,7 @@ sub pool {
 }
 sub cleanup_request{
   undef $request;
+  CGI->_reset_globals;
 }
 sub pnotes {
 	my ($self, $key, $value) = @_;
@@ -120,6 +133,16 @@ sub headers_in {
     my $h = new Apache::Table(($self->headers_in));
   }
 }
+sub dir_config {
+  my ($self, $key) = @_;
+  if (defined $key) {
+    return $$self{'VAR'}{$key};
+  } elsif (wantarray) {
+    return %{$$self{'VAR'}};
+  } else {
+    my $h = new Apache::Table(($self->dir_config));
+  }
+}
 
 1;
 
@@ -132,7 +155,6 @@ sub request{
   $_[ 1 ] = Apache->request;
   shift->new( @_ );
 }
-
 1;
 
 package APR::Table;
@@ -163,6 +185,10 @@ sub new{
 
     return bless {%content}, $class;
 }
+sub set{
+  my $self = shift;
+  $self->{ shift } = shift;
+}
 
 1;
 
@@ -191,8 +217,14 @@ package Apache2::ServerUtil;
 use strict;
 use warnings;
 
+use base qw/Apache::Server/;
+
+use FCGI::Spawn::ModPerl;
+
 sub server{
-  bless {}, shift;
+  my $caller = shift;
+  my $request = Apache::Request->request;
+  $caller->SUPER::new( $request );
 }
 sub add_config{
 }
@@ -219,6 +251,14 @@ sub import{
     shift;
   }
 }
+
+1;
+
+package ModPerl::Const;
+use strict;
+use warnings;
+
+use Apache::Constants qw/:common :http/;
 
 1;
 
@@ -268,20 +308,6 @@ use base qw/Apache::Request/;
 
 1;
 
-package APR::Request;
-use strict;
-use warnings;
-
-1;
-
-package APR::Request::Apache2;
-use strict;
-use warnings;
-
-use base qw/APR::Request/;
-
-1;
-
 package Apache2::Cookie;
 use strict;
 use warnings;
@@ -297,5 +323,55 @@ use warnings;
 use base qw/Apache::Request/;
 
 our $VERSION = '2.10';
+
+1;
+
+package APR::Date;
+use strict;
+use warnings;
+
+use HTTP::Date qw/str2time/;
+
+sub parse_http{
+  return 1000000*str2time shift;
+}
+
+1;
+
+package APR::Request;
+use strict;
+use warnings;
+
+use base qw/Apache2::Request/;
+
+sub jar{
+  my $cookies = Apache2::Cookie->new->fetch;
+  my $rv = { map{
+      $_ =>
+      $cookies->{ $_ }->value;
+    } keys %$cookies
+  };
+  return $rv;
+}
+
+1;
+
+package APR::Request::Apache2;
+use strict;
+use warnings;
+
+use base qw/APR::Request/;
+
+sub handle{
+  return bless $_[ 1 ], $_[ 0 ];
+}
+
+1;
+
+package Apache2::Upload;
+use strict;
+use warnings;
+
+use base qw/Apache::Upload/;
 
 1;

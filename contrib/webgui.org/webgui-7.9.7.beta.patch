@@ -1,0 +1,26 @@
+diff --git a/lib/WebGUI/Session/Http.pm b/lib/WebGUI/Session/Http.pm
+index 8cad25b..63e0f5f 100644
+--- a/lib/WebGUI/Session/Http.pm
++++ b/lib/WebGUI/Session/Http.pm
+@@ -330,6 +330,7 @@ sub sendHeader {
+ 		}
+ 		$request->status($self->getStatus());
+ 		$request->status_line($self->getStatus().' '.$self->getStatusDescription());
++    $request->send_http_header;
+ 	}
+ 	return undef;
+ }
+diff --git a/lib/WebGUI/Wizard/Setup.pm b/lib/WebGUI/Wizard/Setup.pm
+index 51fc184..53f3ab8 100644
+--- a/lib/WebGUI/Wizard/Setup.pm
++++ b/lib/WebGUI/Wizard/Setup.pm
+@@ -3,6 +3,9 @@ package WebGUI::Wizard::Setup;
+ use strict;
+ use base 'WebGUI::Wizard';
+ 
++use WebGUI::Wizard::HomePage;
++
++
+ =head1 NAME
+ 
+ WebGUI::Wizard::Setup -- Initial site setup
