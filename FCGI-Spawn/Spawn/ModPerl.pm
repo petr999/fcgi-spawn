@@ -72,16 +72,6 @@ sub new{
     return $r;
   # $SUPER::new copy end
 }
-sub param { 
-  my $self = shift;
-  my $param = $self->{'CGI'}->param(@_);
-  unless( defined $param ){
-    if( $self->method eq "POST" ){
-      $param = $self->{'CGI'}->url_param(@_);
-    }
-  }
-  return $param;
-}
 
 1;
 
@@ -142,6 +132,26 @@ sub dir_config {
   } else {
     my $h = new Apache::Table(($self->dir_config));
   }
+}
+sub param { 
+  my $self = shift;
+  my @param;
+  if( wantarray ){
+    @param = $self->{'CGI'}->param(@_);
+  } else {
+    if( @_ > 0 ){
+      my $param = $self->{'CGI'}->param(@_);
+      @param = ( $param );
+    } else {
+      return $self->{'CGI'}->Vars;
+    }
+  }
+  unless( @param > 0 ){
+    if( $self->method eq "POST" ){
+      @param = $self->{'CGI'}->url_param(@_);
+    }
+  }
+  return wantarray? @param : shift @param;
 }
 
 1;
@@ -353,6 +363,7 @@ sub jar{
   };
   return $rv;
 }
+*param = *Apache::param;
 
 1;
 
