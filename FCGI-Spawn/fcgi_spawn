@@ -173,25 +173,32 @@ use warnings;
 
 our $OURS = {};
 my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
-my( $preload, $no_detach ) = ( 0, 0, );
+my( $preload, $no_detach, $time_limit, $soft_tl, ) = ( 0, 0, 60, 1, );
+my( $mm_file, $mm_size ) = ( '/tmp/fcgi_spawn_scoreboard.lck', 65535 );
 
 unless( scalar @ARGV ){ print "Usage help: $0 -h\n"; CORE::exit;
 }
 while( my $arg0 = shift @ARGV ){
-  if      ( $arg0 eq '-c'   ){ $config_path           = shift @ARGV;
-  } elsif  ( $arg0 eq '-p'   ){ $pid_file               = shift @ARGV;
-  } elsif  ( $arg0 eq '-l'   ){ $log_file               = shift @ARGV;
-  } elsif  ( $arg0 eq '-u'   ){ $user                   = shift @ARGV;
-  } elsif  ( $arg0 eq '-g'   ){ $group                 = shift @ARGV;
-  } elsif  ( $arg0 eq '-s'   ){ $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
-  } elsif  ( $arg0 eq '-e'   ){ $redefine_exit = 1;
+  if      ( $arg0 eq '-c'     ){ $config_path           = shift @ARGV;
+  } elsif  ( $arg0 eq '-p'    ){ $pid_file               = shift @ARGV;
+  } elsif  ( $arg0 eq '-l'    ){ $log_file               = shift @ARGV;
+  } elsif  ( $arg0 eq '-u'    ){ $user                   = shift @ARGV;
+  } elsif  ( $arg0 eq '-g'    ){ $group                 = shift @ARGV;
+  } elsif  ( $arg0 eq '-s'    ){ $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
+  } elsif  ( $arg0 eq '-t'    ){ $time_limit = shift @ARGV;
+  } elsif  ( $arg0 eq '-stl'  ){ $soft_tl = shift @ARGV;
+  } elsif  ( $arg0 eq '-e'    ){ $redefine_exit = 1;
   } elsif  ( $arg0 eq '-pl'   ){ $preload = 1;
   } elsif  ( $arg0 eq '-nd'   ){ $no_detach = 1;
   } elsif  ( grep { $arg0 eq $_ }( '-h', '-?', ) ){
     print "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
           ."\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
           ."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n"
-          ."\t-nd\t\tdo not detach from console\n";
+          ."\t-nd\t\tdo not detach from console\n\t-t NN\t\tset callout time limit to NN seconds( 60 by default, 0 disables feature )\n"
+          ."\t-stl\t\twait NN seconds for called out process to terminate by time limit before kill it"
+            ."( 1 by default, 9 disables the feature )\n"
+          ."\t-mmf\t\tname of the lock file for the -t feature\n"
+          ."\t-mms\t\tsize of the shared memory segment for the -t feature\n";
     CORE::exit;
   }
 }
@@ -208,7 +215,7 @@ BEGIN{
       }
     };
     *CORE::GLOBAL::exit = $cref;
-    *CORE::GLOBAL::exit;
+    my $rv = *CORE::GLOBAL::exit;
   }
 }
 
@@ -255,30 +262,61 @@ unless( $no_detach ){
   $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
 }
 
-
+my $conf = {};
+my %pid_callouts;
+my $gid = getgrnam( $group ); die "Get group $group: $!" if $gid == 0; 
+my $uid = getpwnam( $user ); die "Get user $user: $!" if $uid == 0;
+if( $time_limit ){
+  eval{
+    require IPC::MM;
+    1;
+  } or die "IPC::MM: $!";
+  my $ipc = IPC::MM::mm_create( $mm_size, $mm_file );
+  my $ipc_hash = IPC::MM::mm_make_hash( $ipc );
+  IPC::MM::mm_permission( $ipc, 0600, $uid, -1 ) and die "SHM unpermitted: $!";
+  tie %pid_callouts, 'IPC::MM::Hash', $ipc_hash;
+  $conf->{ pid_callouts } = \%pid_callouts;
+  $conf->{ time_limit } = $time_limit;
+}
 defined( my $spawn_pid = fork ) or die "Forking spawn: $!";
 if( $spawn_pid ){
+  $SIG{ CHLD } = 'IGNORE';
   map{ my $signal = $_; $SIG{ $signal } = sig_handle( $signal, $spawn_pid );
   } qw/INT HUP TERM/;
   $0 = 'fcgi_spawn';
-  my $rv;
-  do{
-    $rv = waitpid $spawn_pid, 0;
-  } while $rv <= 0;
-  unlink $pid_file;
+  if( $time_limit ){
+    while( kill 0 => $spawn_pid ){
+      foreach my $pid ( keys %pid_callouts ){
+        my $longtitude = time - $pid_callouts{ $pid };
+        if( $longtitude >= $time_limit ){
+          if( $soft_tl ){
+            kill 'TERM' => $pid;
+            sleep $soft_tl if kill 0 => $pid;
+          }
+          kill( 'KILL' => $pid ) if kill 0 => $pid;
+          delete $pid_callouts{ $pid };
+        }
+      }
+      sleep 1;
+    }
+  } else {
+    my $rv;
+    do{
+      $rv = waitpid $spawn_pid, 0;
+    } while $rv <= 0;
+  }
+  unlink $pid_file if defined $pid_file;
   CORE::exit;
 }
 
-my $gid = getgrnam( $group ); die "Get group $group: $!" if $gid == 0; 
 setgid( $gid ); $) = $gid; $( = $gid; die "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
-my $uid = getpwnam( $user ); die "Get user $user: $!" if $uid == 0;
 setuid( $uid ); $> = $uid; $< = $uid; die "Set user $user($uid): $!" if ( $< != $uid ) or ( $> != $uid );
 
 setsid or die "Setting session: $!";
 %ENV=();
 
 
-my $config_file = "$config_path/fcgi_spawn.conf"; my $conf = {};
+my $config_file = "$config_path/fcgi_spawn.conf";
 open( FCGI_CONFIG, "<$config_file" ) or die "Opening $config_file: $!";
 while( <FCGI_CONFIG> ){
   next if /^\s*(#|$)/;
@@ -353,8 +391,6 @@ if( $preload ){
     }
   } @{ $preloaders->{ prepared } };
 }
-
-#*STDERR = $saved_stderr;
 
 $spawn -> spawn; 
 

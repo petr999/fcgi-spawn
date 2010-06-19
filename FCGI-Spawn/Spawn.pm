@@ -727,6 +727,7 @@ sub modperl_reset{
 }
 sub postspawn_dispatch{
   my $self = shift;
+  $self->ipc_pid_delete;
   $self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
   $self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
   $self->modperl_reset if $self->{ mod_perl };
@@ -747,6 +748,21 @@ sub prespawn_dispatch {
     foreach ( keys %main:: ){ 
       delete $main::{ $_ } unless $self->defined_state( 'fcgi_spawn_main', $_ ) ;
     }
+  }
+  $self->ipc_pid_insert;
+}
+sub ipc_pid_insert{
+  my $self = shift;
+  if( $self->{ time_limit } ){
+    my( $ipc, $pid_callouts ) = map{ $self->{ $_ } } qw/ipc pid_callouts/;
+    $pid_callouts->{ $$ } = time;
+  }
+}
+sub ipc_pid_delete{
+  my $self = shift;
+  if( $self->{ time_limit } ){
+    my( $ipc, $pid_callouts ) = map{ $self->{ $_ } } qw/ipc pid_callouts/;
+    delete $pid_callouts->{ $$ };
   }
 }
 sub xinc{
