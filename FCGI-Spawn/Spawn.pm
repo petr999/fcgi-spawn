@@ -442,6 +442,9 @@ my $defaults = {
   stats_reload_method => [ qw/reload_symtable_by_module/ ],
   reload_failover => 0,
   mod_perl => 0,
+  use_php => 0,
+  php_fext => 'php',
+  php_ctype => 'text/html',
 };
 
 sub statnames_to_policy {
@@ -513,6 +516,34 @@ sub new {
     eval{ require CGI;
     1; } or die $!;
   }
+  if( defined $properties->{ use_php } and $properties->{ use_php } ){
+    eval{ require PHP;
+          PHP::options( stdout => sub {
+                       print shift;
+               });
+    1; } or die $!;
+    if( defined $properties->{ php_fext } and $properties->{ php_fext } ){
+      my $php_fext = $properties->{ php_fext };
+      if( '/' eq substr $php_fext, 0, 1 ){
+        my $regex =~ s:^/|/$::g;
+        $php_fext = sub{ ~/$regex/ };
+      } else {
+        $php_fext =~ s/^([^\.])/.$1/;
+        my $php_fext_copy = $php_fext;
+        my $length_php_fext = length $php_fext;
+        $php_fext = sub{
+          my $fn = shift; my $length_fn = length( $fn ); 
+          $php_fext_copy eq substr $fn, $length_fn - $length_php_fext, $length_php_fext;
+        };
+      }
+      $properties->{ php_fext } = $php_fext;
+      $properties->{ php_callout } = sub{
+        print "Content-type: ".$properties->{ php_ctype }."\n\n" 
+          if defined( $properties->{ php_ctype } ) and length $properties->{ php_ctype };
+        PHP::include( shift );
+      };
+    }
+  }
   my $proc_manager = FCGI::ProcManager->new( $properties );
   defined $properties->{maxlength} and $maxlength = $properties->{maxlength};
   $class->make_clean_inc_subnamespace( $properties );
@@ -576,7 +607,11 @@ sub _callout {
   if( $self->{ procname } ){
     $procname = $0; $0 = $_[0];
   }
-  $self->{callout}->( @_ );
+  if( $self->{ use_php } and $self->{ php_fext }->( @_ ) ){
+    $self->{ php_callout }->( @_ );
+  } else {
+    $self->{callout}->( @_ );
+  }
   $0 = $procname if $self->{ procname };
   %ENV = %save_env if $self->{ save_env };
 }
