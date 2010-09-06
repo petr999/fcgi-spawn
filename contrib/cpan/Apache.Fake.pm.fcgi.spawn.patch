@@ -1,6 +1,17 @@
---- Fake.pm.orig
-+++ Fake.pm
-@@ -1126,8 +1126,6 @@ sub new
+--- Fake.pm	2002-02-01 18:00:52.000000000 +0300
++++ /usr/local/jail/internal/usr/local/lib/perl5/site_perl/5.8.9/Apache/Fake.pm	2010-09-06 23:41:31.680037065 +0400
+@@ -1076,10 +1076,6 @@ sub new
+     # http protocol
+     $conf{'PROTOCOL'} = $conf{'ENV'}{'SERVER_PROTOCOL'};
+ 
+-    # path info
+-    $conf{'PATH_INFO'} = substr($conf{'ENV'}{'PATH_TRANSLATED'},length($conf{'FILE'}));
+-    $conf{'ENV'}{'PATH_INFO'} = $conf{'PATH_INFO'};
+-
+     # time
+     $conf{'TIME'} = time();
+ 
+@@ -1126,8 +1122,6 @@ sub new
  
      # connection
      $conf{'ABORTED'} = 0;
@@ -9,19 +20,19 @@
  
      # remote ident
      $conf{'REMOTE_IDENT'} = $conf{'ENV'}{'REMOTE_IDENT'};
-@@ -1265,25 +1263,11 @@ sub new
-        die ($@) if $@;
+@@ -1265,27 +1259,13 @@ sub new
+     	die ($@) if $@;
      }
  
 -    die 'no PerlHandler found, but we have: '.join(keys %$handlers) unless exists $$handlers{'PerlHandler'};
 -
 -    my $eval_string = $$handlers{'PerlHandler'};
 -    if ($eval_string =~ m/->/) {
--       $eval_string .= '($r)';
+-	$eval_string .= '($r)';
 -    } elsif ($eval_string =~ m/^[a-zA-Z_0-9:]+$/) {
--       $eval_string .= '::handler($r)';
+-	$eval_string .= '::handler($r)';
 -    } elsif ($eval_string !~ m/[{&]/) {
--       die "unknown handler syntax: $eval_string";
+-	die "unknown handler syntax: $eval_string";
 -    }
  
      %ENV = %{$conf{'ENV'}};
@@ -33,5 +44,8 @@
 -    $r->status($rc) if $rc;
 -    $r->send_http_header;
  
-     return $r;
+-    return $r;
++      return $r;
  }
+ 
+ 1;

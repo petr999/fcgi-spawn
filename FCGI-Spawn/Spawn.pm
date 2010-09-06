@@ -520,7 +520,11 @@ sub new {
     eval{ require PHP;
           PHP::options( stdout => sub {
                        print shift;
-               });
+               },
+          );
+        # PHP::options( 
+        #      debug => 1,
+        # );
     1; } or die $!;
     if( defined $properties->{ php_fext } and $properties->{ php_fext } ){
       my $php_fext = $properties->{ php_fext };
@@ -667,7 +671,7 @@ sub spawn {
     # Commented code is real sugar for nerds ;)
     #map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
     #  if $ENV{ 'REQUEST_METHOD' } eq 'POST';  # for nginx-0.5
-    $self->_callout( $sn, $fcgi );
+    $self->callout( $sn, $fcgi );
     $req_count ++;
     CORE::exit if $req_count > $max_requests;
     $self->postspawn_dispatch;

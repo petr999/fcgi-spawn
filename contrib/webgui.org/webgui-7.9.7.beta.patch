@@ -1,3 +1,38 @@
+diff --git a/lib/WebGUI/Content/AssetManager.pm b/lib/WebGUI/Content/AssetManager.pm
+index 979de86..aa25e7f 100644
+--- a/lib/WebGUI/Content/AssetManager.pm
++++ b/lib/WebGUI/Content/AssetManager.pm
+@@ -8,6 +8,7 @@ use WebGUI::Form;
+ use WebGUI::Paginator;
+ use WebGUI::Utility;
+ use WebGUI::Macro::AdminBar;
++use WebGUI::Form::CsrfToken;
+ 
+ #----------------------------------------------------------------------------
+ 
+@@ -372,8 +373,8 @@ sub www_manage {
+     $session->style->setScript( $session->url->extras( 'yui-webgui/build/form/form.js' ) );
+ 
+     $session->style->setRawHeadTags( <<ENDHTML );
+-    <link type="text/css" rel="stylesheet" href="http://yui.yahooapis.com/2.6.0/build/logger/assets/skins/sam/logger.css">
+-    <script type="text/javascript" src="http://yui.yahooapis.com/2.6.0/build/logger/logger-min.js"></script> 
++    <link type="text/css" rel="stylesheet" href="/extras/yui/build/assets/skins/sam/logger.css">
++    <script type="text/javascript" src="/extras/yui/build/logger/logger-min.js"></script> 
+ 
+     <script type="text/javascript">
+         YAHOO.util.Event.onDOMReady( WebGUI.AssetManager.initManager );
+diff --git a/lib/WebGUI/Session.pm b/lib/WebGUI/Session.pm
+index b25f3d8..f0f3309 100644
+--- a/lib/WebGUI/Session.pm
++++ b/lib/WebGUI/Session.pm
+@@ -448,6 +448,7 @@ sub open {
+ 	my $noFuss = shift;
+ 	$self->{_var} = WebGUI::Session::Var->new($self,$sessionId, $noFuss);
+ 	$self->errorHandler->warn("You've disabled cache in your config file and that can cause many problems on a production site.") if ($config->get("disableCache"));
++  $self->form;
+ 	return $self;
+ }
+ 
 diff --git a/lib/WebGUI/Session/Http.pm b/lib/WebGUI/Session/Http.pm
 index 8cad25b..63e0f5f 100644
 --- a/lib/WebGUI/Session/Http.pm
@@ -24,3 +59,16 @@ index 51fc184..53f3ab8 100644
  =head1 NAME
  
  WebGUI::Wizard::Setup -- Initial site setup
+diff --git a/lib/WebGUI/Workflow/Activity/ExpirePurchasedThingyRecords.pm b/lib/WebGUI/Workflow/Activity/ExpirePurchasedThingyRecords.pm
+index 27600d5..e85ccf6 100644
+--- a/lib/WebGUI/Workflow/Activity/ExpirePurchasedThingyRecords.pm
++++ b/lib/WebGUI/Workflow/Activity/ExpirePurchasedThingyRecords.pm
+@@ -17,6 +17,8 @@ package WebGUI::Workflow::Activity::ExpirePurchasedThingyRecords;
+ use strict;
+ use base 'WebGUI::Workflow::Activity';
+ 
++use WebGUI::AssetCollateral::Sku::ThingyRecord::Record;
++
+ =head1 NAME
+ 
+ Package WebGUI::Workflow::Activity::ExpirePurchasedThingyRecords
