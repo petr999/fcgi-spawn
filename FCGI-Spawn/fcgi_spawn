@@ -210,12 +210,20 @@ BEGIN{
       if( 'FCGI::ProcManager' eq scalar caller ){
         CORE::exit @_;
       } else {
-        no warnings;
-        last CALLED_OUT;
+        if( $^V lt v5.12.0 ){
+          no warnings;
+          last CALLED_OUT;
+        } else {
+          goto CALLED_OUT;
+        }
       }
     };
-    *CORE::GLOBAL::exit = $cref;
-    my $rv = *CORE::GLOBAL::exit;
+    if( $^V lt v5.12.0 ){
+      *CORE::GLOBAL::exit = $cref;
+      my $rv = *CORE::GLOBAL::exit;
+    } else {
+      *main::exit = $cref;
+    }
   }
 }
 
