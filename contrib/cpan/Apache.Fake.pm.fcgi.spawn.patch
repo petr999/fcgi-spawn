@@ -1,6 +1,52 @@
---- Fake.pm	2002-02-01 18:00:52.000000000 +0300
-+++ /usr/local/jail/internal/usr/local/lib/perl5/site_perl/5.8.9/Apache/Fake.pm	2010-09-06 23:41:31.680037065 +0400
-@@ -1076,10 +1076,6 @@ sub new
+--- /home/meme/dl/sft/Fake.pm	2010-12-14 18:56:05.000000000 +0300
++++ /jails/internal/usr/local/lib/perl5/site_perl/5.12.2/Apache/Fake.pm	2010-12-14 19:00:15.000000000 +0300
+@@ -27,6 +27,7 @@
+ 	$INC{'Apache/Log.pm'} = $INC{'Apache/Fake.pm'};
+ 	$INC{'Apache/Table.pm'} = $INC{'Apache/Fake.pm'};
+ 	$INC{'Apache/Status.pm'} = $INC{'Apache/Fake.pm'};
++	$INC{'Apache2/ServerUtil.pm'} = $INC{'Apache/Fake.pm'};
+ 	$INC{'mod_perl.pm'} = $INC{'Apache/Fake.pm'};
+ }
+ 
+@@ -627,8 +628,13 @@
+ 		#$self->warn($header.': '.$$self{'EHEADERS_OUT'}{$header});
+ 	}
+ 	foreach my $header (keys %{$$self{'HEADERS_OUT'}}) {
+-		$self->print($header.': '.$$self{'HEADERS_OUT'}{$header}."\n");
+-		#$self->warn($header.': '.$$self{'HEADERS_OUT'}{$header});
++    if( 'ARRAY' eq ref $$self{'HEADERS_OUT'}{$header} ){
++		    $self->print($header.': '.$_."\n")
++          foreach @{ $$self{'HEADERS_OUT'}{$header} };
++    } else {
++		  $self->print($header.': '.$$self{'HEADERS_OUT'}{$header}."\n");
++		  #$self->warn($header.': '.$$self{'HEADERS_OUT'}{$header});
++    }
+ 	}
+ 	$self->print("\n");
+ 	$$self{'HEADERS_SENT'} = undef;
+@@ -719,7 +725,20 @@
+ 
+ sub header_out {
+ 	my ($self, $key, $value) = @_;
+-	$$self{'HEADERS_OUT'}{$key} = $value if defined $value;
++  if( defined $value ){
++    if( defined $$self{'HEADERS_OUT'}{$key} ){
++      if( 'ARRAY' eq ref $$self{'HEADERS_OUT'}{$key} ){
++        push @{ $$self{'HEADERS_OUT'}{$key} }, $value;
++      } else {
++        $$self{'HEADERS_OUT'}{$key} = [
++          $$self{'HEADERS_OUT'}{$key},
++          $value,
++        ];
++      }
++    } else {
++	    $$self{'HEADERS_OUT'}{$key} = $value;
++    }
++  }
+ 	$$self{'HEADERS_OUT'}{$key};
+ }
+ 
+@@ -1076,10 +1095,6 @@
      # http protocol
      $conf{'PROTOCOL'} = $conf{'ENV'}{'SERVER_PROTOCOL'};
  
@@ -11,7 +57,7 @@
      # time
      $conf{'TIME'} = time();
  
-@@ -1126,8 +1122,6 @@ sub new
+@@ -1126,8 +1141,6 @@
  
      # connection
      $conf{'ABORTED'} = 0;
@@ -20,7 +66,7 @@
  
      # remote ident
      $conf{'REMOTE_IDENT'} = $conf{'ENV'}{'REMOTE_IDENT'};
-@@ -1265,27 +1259,13 @@ sub new
+@@ -1265,25 +1278,11 @@
      	die ($@) if $@;
      }
  
@@ -44,8 +90,5 @@
 -    $r->status($rc) if $rc;
 -    $r->send_http_header;
  
--    return $r;
-+      return $r;
+     return $r;
  }
- 
- 1;
