@@ -343,7 +343,7 @@ $conf->{ sock_chmod } = oct( $conf->{ sock_chmod }  )or die "Not a chmod for soc
 my $spawn = FCGI::Spawn->new( $conf, )
   or die "$@ $!";
 
-setgid( $gid ); $) = $gid; $( = $gid; die "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
+setgid( $gid ); $) = "$gid $gid"; $( = $gid; die "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
 setuid( $uid ); $> = $uid; $< = $uid; die "Set user $user($uid): $!" if ( $< != $uid ) or ( $> != $uid );
 
 setsid or die "Setting session: $!";
