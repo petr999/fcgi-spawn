@@ -403,7 +403,7 @@ License: same as FCGI::ProcManager's one. More info on FCGI::Spawn at: L<http://
 use strict;
 use warnings;
 
-use File::Basename;
+use File::Basename qw/fileparse/;
 use FCGI::ProcManager;
 
 
@@ -664,9 +664,8 @@ sub spawn {
   while( $$self{ acceptor }->() ) {
     $proc_manager->pm_pre_dispatch();
     my $sn = $ENV{SCRIPT_FILENAME};
-    my $dn = dirname $sn;
-    my $bn = basename $sn;
-    chdir $dn;
+    my ( $bn, $dn ) = fileparse $sn;
+    chdir( $dn ) or die $!;
     $self->prespawn_dispatch( $sn );
     # Commented code is real sugar for nerds ;)
     #map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
@@ -675,7 +674,7 @@ sub spawn {
     $req_count ++;
     CORE::exit if $req_count > $max_requests;
     $self->postspawn_dispatch;
-     $proc_manager->pm_post_dispatch();
+    $proc_manager->pm_post_dispatch();
     undef( $fcgi ) if $use_cgi_fast; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
   }
 }
