@@ -6,16 +6,15 @@ use warnings;
 use vars qw($VERSION);
 BEGIN {
   $VERSION = '0.16.1';
-  no warnings; # keep from '$Default only once'
+  no warnings 'once'; # keep from '$Default only once'
   $FCGI::Spawn::Default = 'FCGI::Spawn';
-  use warnings;
 }
 
 =pod
 
 =head1 NAME
 
- FCGI::Spawn - C<FastCGI> server for C<CGI>-like applications effective multiprocessing
+FCGI::Spawn - C<FastCGI> server for C<CGI>-like applications effective multiprocessing
 
 =head1 SYNOPSIS
 
@@ -60,7 +59,7 @@ This may be useful in both development environment to make the recompilation yet
 
 =head1 Behind the scenes of fcgi_spawn
 
-Here are the details for those unsatisfied with C<fcgi_spawn> but trying with C<FCGI::Spawn> anyway:
+Here are the details about what the C<fcgi_spawn> stands for C<FCGI::Spawn>. You need to know this to make a custom replacement of C<fcgi_spawn>:
 
 =over
 
@@ -73,13 +72,13 @@ This is because of setting up the socket communication in the C<CGI::Fast>, whic
 
 =item * You should beware about C<CGI::Fast> IS NOT included
 
-at the moment this module is being used, e. g. IS ABSENT in the %INC global hash.
+at the moment this module is being C<used>, e. g. IS ABSENT in the %INC global hash.
 
-=item * C<CGI> scripts ( if not C<CGI.pm> ) must be tweaked to use $FCGI::Spawn::fcgi instead of new C<CGI> or CGI->new().
+=item * C<CGI> scripts ( if not C<CGI.pm> ) can be tweaked to use $FCGI::Spawn::fcgi instead of new C<CGI> or CGI->new().
 
-In other case they will not be able to process HTTP POST.
+In other case they may not be able to process HTTP POST.
 
-In some cases ( e. g. Bugzilla that derives C<CGI.pm> ) the sources should be changed, too.
+In some cases ( e. g. Bugzilla that derives C<CGI.pm> and a mod_perl emulation is unwanted ) the sources should be changed, too.
 Hope your code obfuscators are not that complex to allow such a tweak. ;-)
 C<FastCGI> scripts do take the C<FastCGI> object as a parameter, so it is obviously supplied in the C<callout> code reference ( see below ).
 
@@ -117,7 +116,7 @@ Despite the promises of "we do this too" on C<sendfile> and C<kqueue> features.
 
 =item * More stuff on your board overheads administering
 
-The unclear differences between the bundled C<PerlHandler>'s environments among with the more code to compile and depend on, causes the radical changes are needed in the existing, mostly C<CGI>, programs.
+The unclear differences between the bundled C<PerlHandler>'s environments among with the more code to compile and depend on, causes the radical changes are needed in the existing, mostly C<CGI>, programs around.
 
 =back
 
@@ -173,7 +172,7 @@ Default: /tmp/spawner.sock.
 
 You can set environment value with your shell like this:
 
-FCGI_SOCKET_PATH=/var/lib/fcgi.sock ./fcgi_spawn.pl <parameters>
+  FCGI_SOCKET_PATH=/var/lib/fcgi.sock ./fcgi_spawn.pl <parameters>
 
 or you can enclose it into the eval() like that:
 
@@ -547,11 +546,11 @@ sub init_acceptor{
   if( defined $properties->{ acceptor } and ( $properties->{ acceptor } eq 'cgi_fast' ) ){
     $ENV{FCGI_SOCKET_PATH} = $sock_name;
     $ENV{FCGI_LISTEN_QUEUE} = $sock_queue;
-    eval{ require "CGI/Fast.pm";
+    eval{ require CGI::Fast;
     1; } or die "$@ $!";
   } else {
     eval{ require FCGI;
-    1; } or die $!;
+    1; } or die "$@ $!";
     my $socket  = FCGI::OpenSocket( $sock_name, $sock_queue ) or die $!;
     my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
           \%ENV, $socket, 1 ) or die $!;
@@ -566,10 +565,9 @@ sub new {
   } else {
     $properties = $defaults;
   }
-  no warnings; # keep from 'Ext_Request only once'
+  no warnings 'once'; # keep from 'Ext_Request only once'
   die "CGI::Fast made its own BEGIN already!"
     if defined $CGI::Fast::Ext_Request;
-  use warnings;
   my $sock_name = $properties->{ sock_name };
   my $sock_queue = $properties->{ sock_queue };
   &unlink_socket( $sock_name ) unless $properties->{ keep_socket };
