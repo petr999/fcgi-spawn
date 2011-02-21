@@ -95,19 +95,19 @@ sub cleanup_request{
   CGI->_reset_globals;
 }
 sub pnotes {
-	my ($self, $key, $value) = @_;
-	if (@_ == 3) {
-		$$self{'PNOTES'}{$key} = $value;
-	} elsif (@_ == 1) {
-		return $$self{'PNOTES'} if 'Apache::Table' eq ref $$self{'PNOTES'};
-		return new Apache::Table($$self{'PNOTES'});
-	}
-	return $$self{'PNOTES'}{$key};
+  my ($self, $key, $value) = @_;
+  if (@_ == 3) {
+    $$self{'PNOTES'}{$key} = $value;
+  } elsif (@_ == 1) {
+    return $$self{'PNOTES'} if 'Apache::Table' eq ref $$self{'PNOTES'};
+    return new Apache::Table($$self{'PNOTES'});
+  }
+  return $$self{'PNOTES'}{$key};
 }
 
 sub post_connection {
-	my ($self, $code) = @_;
-	push( @{$$self{'HANDLERS'}{'PerlCleanupHandler'}}, $code )
+  my ($self, $code) = @_;
+  push( @{$$self{'HANDLERS'}{'PerlCleanupHandler'}}, $code )
     unless grep{ $code eq $_ } @{$$self{'HANDLERS'}{'PerlCleanupHandler'}};
 }
 *register_cleanup = \&post_connection;
@@ -133,7 +133,7 @@ sub dir_config {
     my $h = new Apache::Table(($self->dir_config));
   }
 }
-sub param { 
+sub param {
   my $self = shift;
   my @param;
   if( wantarray ){
