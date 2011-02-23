@@ -1,20 +1,9 @@
 #!/usr/bin/perl
 
-#eval 'exec /usr/local/bin/perl  -S $0 ${1+"$@"}'
-#    if 0; # not running under some shell
-
-
 package main;
 
 use strict;
 use warnings;
-
-use vars qw($VERSION);
-BEGIN {
-  $VERSION = '0.16.1';
-  no warnings 'once';
-  $FCGI::Spawn::Default = 'FCGI::Spawn';
-}
 
 =pod
 
@@ -41,20 +30,31 @@ Consider all of them to be mandatory:
   -c <config_path> Full path to the directory of configuration file, the
 fcgi_spawn.conf ( See 'Configuration File' below );
   -p <pid_file>    Full path and name of the process ID file name;
-  -l <log_file>    Full path and name  of the log file name;
-  -u <user>        Name of the system user to run the FastCGI applications;
-  -g <group>       Name of the system group to run the FastCGI applications;
-  -s <socket>      Name of the local UNIX socket to be created by the daemon to
-listen for incoming connections. You should try :number or address:number or
-host:number as a value of this option in teh case the TCP connectivity is
-wanted;
+  - Either of these two:
+    -l <log_file>    Full path and name  of the log file name, or:
+    -nd              do not detach from console
+  -u <user>         Name of the system user to run the FastCGI applications;
+  -g <group>        Name of the system group to run the FastCGI applications;
+  -s <socket>       Name of the local UNIX socket to be created by the daemon to
+                    listen for incoming connections. You should try :number or
+                    a.dd.re.ss:number or ho.st:number as a value of this
+                    option in the case the TCP connectivity is wanted;
 
 Those are optional:
 
-  -e               Redefine the exit() Perl builtin function to prevent the
-spawned persistent processes from exiting and starting again when your
-application(s) exit;
-  -pl              Evaluate the:
+  -e                Redefine the exit() Perl builtin function to prevent the
+                    spawned persistent processes from exiting and starting
+                    again when your application(s) exit;
+  -t NN             set callout time limit to NN seconds ( 60 by default,
+                    0 disables the feature );
+  -stl              wait NN seconds for called out process to terminate by
+                    time limit before kill it ( 1 by default, 9 disables the
+                    feature );
+  -mmf              name of the lock file for the -t feature ( defaults to
+                    /tmp/fcgi_spawn_scoreboard.lck );
+  -mms              size of the shared memory segment for the -t feature 
+                    ( defaults to 65535 bytes );
+  -pl               Evaluate the:
 
 =head2 C<Preload> Scripts from the configuration directory
 
@@ -169,6 +169,9 @@ C<LGPL>, as of the MANIFEST file in L<FCGI::Spawn|FCGI::Spawn>'s CPAN distributi
 
 =cut
 
+use FCGI::Spawn::ConfigFile;
+use FCGI::Spawn::BinUtils qw/init_pid_callouts_share sig_handle re_open_log/;
+
 our $OURS = {};
 my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
 my( $preload, $no_detach, $time_limit, $soft_tl, ) = ( 0, 0, 60, 1, );
@@ -192,11 +195,13 @@ while( my $arg0 = shift @ARGV ){
     print "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
           ."\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
           ."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n"
-          ."\t-nd\t\tdo not detach from console\n\t-t NN\t\tset callout time limit to NN seconds( 60 by default, 0 disables feature )\n"
+          ."\t-nd\t\tdo not detach from console\n\t-t NN\t\tset callout time limit to NN seconds"
+            ." ( 60 by default, 0 disables feature )\n"
           ."\t-stl\t\twait NN seconds for called out process to terminate by time limit before kill it"
-            ."( 1 by default, 9 disables the feature )\n"
+            ." ( 1 by default, 9 disables the feature )\n"
           ."\t-mmf\t\tname of the lock file for the -t feature\n"
           ."\t-mms\t\tsize of the shared memory segment for the -t feature\n";
+          ;
     CORE::exit;
   }
 }
@@ -232,13 +237,6 @@ if( $redefine_exit ){
 }
 
 
-sub sig_handle{
-  my( $sig, $pid ) = @_;
-  return sub{
-    $sig = ( $sig eq 'INT' ) ? 'TERM' : $sig ;
-    kill $sig, $pid ;
-  };
-}
 
 defined( my $pid = fork ) or die "Forking logger: $!";
 if( $pid ){
@@ -254,36 +252,25 @@ if( $pid ){
   CORE::exit;
 }
 
-sub re_open_log{
-  my $log_file = shift;
-  close STDERR if defined fileno STDERR;
-  close STDOUT if defined fileno STDOUT;
-  open( STDERR, ">>", $log_file ) or die "Opening log $log_file: $!";
-  open( STDOUT, ">>", $log_file ) or die "Opening log $log_file: $!";
-  open STDIN, "<", '/dev/null'   or die "Can't read /dev/null: $!";
-}
 
 unless( $no_detach ){
   re_open_log $log_file;
   $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
 }
 
-my $conf = {};
-my %pid_callouts;
+my $conf = FCGI::Spawn::ConfigFile->new();
 my $gid = getgrnam( $group ); die "Get group $group: $!" if $gid == 0;
 my $uid = getpwnam( $user ); die "Get user $user: $!" if $uid == 0;
+
 if( $time_limit ){
-  eval{
-    require IPC::MM;
-    1;
-  } or die "IPC::MM: $!";
-  my $ipc = IPC::MM::mm_create( $mm_size, $mm_file );
-  my $ipc_hash = IPC::MM::mm_make_hash( $ipc );
-  IPC::MM::mm_permission( $ipc, '0600', $uid, -1 ) and die "SHM unpermitted: $!";
-  tie %pid_callouts, 'IPC::MM::Hash', $ipc_hash;
-  $conf->{ pid_callouts } = \%pid_callouts;
-  $conf->{ time_limit } = $time_limit;
+  $conf->pid_callouts( init_pid_callouts_share( {
+        mm_size => $mm_size, mm_file => $mm_file, uid => $uid,
+      }
+    )
+  );
+  $conf->time_limit( $time_limit );
 }
+
 defined( my $spawn_pid = fork ) or die "Forking spawn: $!";
 if( $spawn_pid ){
   $SIG{ CHLD } = 'IGNORE';
@@ -292,15 +279,16 @@ if( $spawn_pid ){
   $0 = 'fcgi_spawn';
   if( $time_limit ){
     while( kill 0 => $spawn_pid ){
-      foreach my $pid ( keys %pid_callouts ){
-        my $longtitude = time - $pid_callouts{ $pid };
+      my $pid_callouts = $conf->pid_callouts;
+      foreach my $pid ( keys %$pid_callouts){
+        my $longtitude = time - $pid_callouts->{ $pid };
         if( $longtitude >= $time_limit ){
           if( $soft_tl ){
             kill 'TERM' => $pid;
             sleep $soft_tl if kill 0 => $pid;
           }
           kill( 'KILL' => $pid ) if kill 0 => $pid;
-          delete $pid_callouts{ $pid };
+          delete $pid_callouts->{ $pid };
         }
       }
       sleep 1;
@@ -317,26 +305,10 @@ if( $spawn_pid ){
 
 %ENV=();
 
-
-my $config_file = "$config_path/fcgi_spawn.conf";
-open( my $fcgi_config_fh, "<", $config_file ) or die "Opening $config_file: $!";
-while( <$fcgi_config_fh> ){
-  next if /^\s*(#|$)/;
-  chomp; s/^\s+//g;
-  if( my( $key, @val ) = split /\s+/, $_ ){
-    if( 1 < scalar @val  ){
-      $conf->{ $key } = \@val ;
-    } else {
-      $conf->{ $key } = shift @val ;
-    }
-  }
-}
-close $fcgi_config_fh;
+$conf->read_fsp_config( $config_path );
 
 eval { require FCGI::Spawn; import FCGI::Spawn;
 1; } or die $!;
-
-$conf->{ sock_chmod } = oct( $conf->{ sock_chmod }  )or die "Not a chmod for socket: ". $conf->{ sock_chmod }  ;
 
 my $spawn = FCGI::Spawn->new( $conf, )
   or die "$@ $!";

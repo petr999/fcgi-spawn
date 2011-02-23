@@ -219,7 +219,7 @@ Default: 0.
 
 =item * clean_main_space
 
-when set to true points to clean out the %main:: changes ( unset the global variables ) at the same time.
+when set to 1 points to clean out the %main:: changes ( unset the global variables ) at the same time, in between the requests.
 Default: 0.
 
 =item * clean_inc_subnamespace
@@ -468,11 +468,13 @@ sub sock_change{
   my $sock_name = $self->{ sock_name };
   if( defined $self->{sock_chown} ){
     chown( @{ $self->{sock_chown} }, $sock_name )
-    or die $!;
+      or die $!;
   }
   if( defined $self->{sock_chmod} ){
+    $self->{ sock_chmod } = oct( $self->{ sock_chmod }  )
+      or die "Not a chmod for socket: ". $self->{ sock_chmod };
     chmod( $self->{sock_chmod}, $sock_name )
-    or die $!;
+      or die $!;
   }
 }
 sub load_optional_module_modperl {
@@ -539,10 +541,10 @@ sub load_optional_modules {
   $class->load_optional_module_php( $properties );
 }
 sub init_acceptor{
-  my $class = shift;
-  my( $properties, $sock_name, $sock_queue ) = map{
-    $_[0]->{ $_ };
-  } qw/properties sock_name sock_queue/;
+  my( $class, $properties ) = @_;
+  my( $sock_name, $sock_queue ) = map{
+    $properties->{ $_ }
+  } qw/sock_name sock_queue/;
   if( defined $properties->{ acceptor } and ( $properties->{ acceptor } eq 'cgi_fast' ) ){
     $ENV{FCGI_SOCKET_PATH} = $sock_name;
     $ENV{FCGI_LISTEN_QUEUE} = $sock_queue;
@@ -571,9 +573,7 @@ sub new {
   my $sock_name = $properties->{ sock_name };
   my $sock_queue = $properties->{ sock_queue };
   &unlink_socket( $sock_name ) unless $properties->{ keep_socket };
-  $class->init_acceptor(
-    { properties => $properties, sock_name => $sock_name, sock_queue => $sock_queue, }
-  );
+  $class->init_acceptor( $properties );
   $class->load_optional_modules( $properties );
   my $proc_manager = FCGI::ProcManager->new( $properties );
   defined $properties->{maxlength} and $maxlength = $properties->{maxlength};
@@ -696,9 +696,6 @@ sub spawn {
     my ( $bn, $dn ) = fileparse $sn;
     chdir( $dn ) or die $!;
     $self->prespawn_dispatch( $sn );
-    # Commented code is real sugar for nerds ;)
-    #map { $ENV{ $_ } = $ENV{ "HTTP_$_" } } qw/CONTENT_LENGTH CONTENT_TYPE/
-    #  if $ENV{ 'REQUEST_METHOD' } eq 'POST';  # for nginx-0.5
     $self->callout( $sn, $fcgi );
     $req_count ++;
     CORE::exit if $req_count > $max_requests;
@@ -821,14 +818,14 @@ sub prespawn_dispatch {
 sub ipc_pid_insert{
   my $self = shift;
   if( $self->{ time_limit } ){
-    my( $ipc, $pid_callouts ) = map{ $self->{ $_ } } qw/ipc pid_callouts/;
+    my $pid_callouts = $self->{ pid_callouts };
     $pid_callouts->{ $$ } = time;
   }
 }
 sub ipc_pid_delete{
   my $self = shift;
   if( $self->{ time_limit } ){
-    my( $ipc, $pid_callouts ) = map{ $self->{ $_ } } qw/ipc pid_callouts/;
+    my $pid_callouts = $self->{ pid_callouts };
     delete $pid_callouts->{ $$ };
   }
 }
