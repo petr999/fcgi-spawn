@@ -16,7 +16,7 @@ use FCGI::Spawn qw/statnames_to_policy/;
 
 my @utils_args = (
   [ 'sock_name' => join( '/',
-      '/tmp' => 'spawner_' . rand( 100000 ) . '.sock', ),
+      './etc-test' => 'spawner_' . rand( 100000 ) . '.sock', ),
   ],
   [], # TCP is the default in TestUtils
 );
