@@ -18,4 +18,5 @@ WriteMakefile
    PREREQ_PRINT  =>  1,
    EXE_FILES    => [ 'bin/fcgi_spawn' ],
    PREREQ_PM    => {  'FCGI::ProcManager'  =>  0, },
+# FIXME: Perl6::Export::Attrs Sub::Name
  );

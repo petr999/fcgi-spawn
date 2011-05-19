@@ -18,11 +18,11 @@ FCGI::Spawn - C<FastCGI> server for C<CGI>-like applications effective multiproc
 
 =head1 SYNOPSIS
 
-Minimal discouraged way to illustrate it working:
+Intended to use from properly prepared environments only:
 
-  FCGI::Spawn->new->spawn;
+  FCGI::Spawn->new->spawn( \%conf );
 
-Never do such a thing in a production use. The C<fcgi_spawn> script supplied should care about sadly mandatory whistles and bells, at least the security is a king in sight of this:
+The C<fcgi_spawn> script supplied as an example of such a use should care about sadly mandatory whistles and bells, at least the security is a king in sight of this:
 
 FCGI::Spawn code should be run as its own user id, and the web server should be configured to request its C<FastCGI>; in the case the local socket file is used, the web server should have the read and write permissions on it, the default name is /tmp/spawner.sock.
 Consider about sock_chmod/sock_chown parameters for this, too.
@@ -202,12 +202,14 @@ Default: 1.
 
 =item * stats_policy
 
-Array reference that defines what kind of changes on the every module file stat()'s change to track and in what order.
+Array reference that defines what kind of changes on the every module file stat()'s change to track and in what sequence.
 Default: FCGI::Spawn::statnames_to_policy( 'mtime' ) ( statnames_to_policy() function is described below ).
 
 =item * x_stats  and x_stats_policy
 
 Same as C<stats> and C<stats_policy> but for xinc() feature ( see below ).
+
+Default: 1 and mtime, correspondently.
 
 =item * clean_inc_hash
 
@@ -403,19 +405,26 @@ License: same as FCGI::ProcManager's one. More info on FCGI::Spawn at: L<http://
 
 =cut
 
+use Const::Fast;
 use File::Basename qw/fileparse/;
 use FCGI::ProcManager;
+use FCGI::Spawn::BinUtils ':modules';
 
 use base qw/Exporter/;
 
 our @EXPORT_OK = qw/statnames_to_policy/;
 
-our $fcgi = undef;
+our $fcgi = undef; #TODO: my
+my $use_cgi_fast = 0;
 my %xinc;
 
 my $maxlength=100000;
 
-my $defaults = {
+const my $policies => { qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6
+  size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/ };
+
+
+const my $defaults => {
   n_processes => 5,
   max_requests =>  20,
   clean_inc_hash  =>   0,
@@ -447,10 +456,10 @@ my $defaults = {
 };
 
 sub statnames_to_policy {
-  my %policies = qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6 size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/;
-  grep(  { $_ eq 'all' } @_ )
+  my $rv = grep(  { $_ eq 'all' } @_ )
   ?  [ 0..7, 9..12 ]
-  : [ map( { $policies{ $_ } } @_ ) ];
+  : [ map { $policies -> { $_ }; } @_ ];
+  return $rv;
 }
 
 sub unlink_socket{
@@ -572,7 +581,8 @@ sub new {
     if defined $CGI::Fast::Ext_Request;
   my $sock_name = $properties->{ sock_name };
   my $sock_queue = $properties->{ sock_queue };
-  &unlink_socket( $sock_name ) unless $properties->{ keep_socket };
+  my $is_sock_tcp = &is_sock_tcp( $sock_name );
+  &unlink_socket( $sock_name ) unless $is_sock_tcp or $properties->{ keep_socket };
   $class->init_acceptor( $properties );
   $class->load_optional_modules( $properties );
   my $proc_manager = FCGI::ProcManager->new( $properties );
@@ -580,7 +590,7 @@ sub new {
   $class->make_clean_inc_subnamespace( $properties );
   $properties->{proc_manager} = $proc_manager;
   my $self = bless $properties, $class;
-  $self->sock_change;
+  $self->sock_change unless $is_sock_tcp;
   $self->assign_acceptor;
   $self->assign_reloader;
   return $self;
@@ -609,7 +619,8 @@ sub assign_acceptor{
   my $self = shift;
   my $acceptor = $self->{ acceptor };
   if( $acceptor eq 'cgi_fast' ){
-    $self->{ acceptor } = sub{ $fcgi = CGI::Fast->new } ;
+    $self->{ acceptor } = sub{ $fcgi = CGI::Fast->new };
+    $use_cgi_fast = 1;
   } else {  # $acceptor eq 'fcgi'
     $self->{ acceptor } = sub{
       my $request = $self->{ request };
@@ -679,7 +690,7 @@ sub prepare {
   $proc_manager->pm_manage();
   $self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
   $self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-  srand if $self->{ seed_rand }; # make entropy different among forks
+  # srand if $self->{ seed_rand }; # make entropy different among forks
   $self->{ is_prepared } = 1;
 }
 
@@ -688,7 +699,6 @@ sub spawn {
   $self->prepare unless $self->{ is_prepared };
   my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
   my $req_count=0;
-  my $use_cgi_fast = ( $self->{ acceptor } eq 'cgi_fast' );
   $self->cgi_reset_globals;
   while( $$self{ acceptor }->() ) {
     $proc_manager->pm_pre_dispatch();
@@ -763,6 +773,7 @@ sub reload_symtable_by_module{
             $INC{ $key } = $value;
           } else {
             #$symtab_container->{ $symtab_key } = $symtab;
+            undef $symtab_container->{ $symtab_key };
             delete $symtab_container->{ $symtab_key };
           }
         }
@@ -810,7 +821,9 @@ sub prespawn_dispatch {
   $self->clean_xinc_modified if $self->{ x_stats };
   if( $self->{clean_main_space} ){ # actual cleaning vars
     foreach ( keys %main:: ){
-      delete $main::{ $_ } unless $self->defined_state( 'fcgi_spawn_main', $_ ) ;
+      unless( $self->defined_state( 'fcgi_spawn_main', $_ ) ){
+        undef $main::{ $_ }; delete $main::{ $_ };
+      }
     }
   }
   $self->ipc_pid_insert;
@@ -934,6 +947,7 @@ sub clean_inc_modified {
         }
       }
     }
+    # if( $modified and $module =~ m/Mod.pm$/ ) { print STDERR $module; }
     $self->{ reloader }->( $module ) if $modified and ( $module ne $sn );
   }
 }
