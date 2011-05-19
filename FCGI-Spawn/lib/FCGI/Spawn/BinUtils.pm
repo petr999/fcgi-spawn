@@ -73,7 +73,8 @@ EOT
 }
 
 sub is_sock_tcp :Export( :modules :testutils ){
-  shift =~ /^[^\/]+:\d+$/;
+  my $rv = shift =~ m/^([^:]+):([^:]+)$/;
+  wantarray ? ( $1 => $2, ) : $rv;
 }
 
 1;

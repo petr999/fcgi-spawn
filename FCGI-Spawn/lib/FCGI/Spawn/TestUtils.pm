@@ -237,7 +237,8 @@ sub sock_try_serv{
   my $self = shift;
   my $sock_name = $self -> get_sock_name;
   my $rv = 0;
-  if( my( $addr, $port ) = $self -> sock_is_tcp ){
+  my( $addr, $port ) = $self -> addr_port;
+  if( defined $addr ){
     $addr = gethostbyname( $addr ) unless $addr =~ m/^(\d{1,3}\.){3}\d{1,3}$/;
     my $struct_addr = sockaddr_in( $port, inet_aton( $addr ) ) or croak $!;
     socket(my $h, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or croak $!;
@@ -251,11 +252,17 @@ sub sock_try_serv{
   return $rv;
 }
 
-sub sock_is_tcp{
+sub addr_port{
   my $self = shift;
   my $sock_name = $self -> get_sock_name;
-  $sock_name =~ m/^([^:]+):([^:]+)$/;
-  ( $1, $2 );
+  my @rv = &is_sock_tcp( $sock_name, );
+  my( $addr => $port, ) = @rv;
+  unless( defined( $addr ) and length( $addr )
+      and defined( $port ) and length( $port )
+    ){
+      @rv = undef;
+  }
+  return @rv;
 }
 
 sub spawn_fcgi{
@@ -360,6 +367,10 @@ sub rm_files_if_exists{
     if( -f $fname ){
       unlink( $fname ) or croak $!;
     }
+  }
+  my $sock_name = $self -> get_sock_name;
+  if( defined( $sock_name ) and length( $sock_name ) and -S $sock_name ){
+    croak "Cannot delete socket: $sock_name" unless unlink( $sock_name );
   }
 }
 
