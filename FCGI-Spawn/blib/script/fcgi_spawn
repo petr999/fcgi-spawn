@@ -174,6 +174,7 @@ C<LGPL>, as of the MANIFEST file in L<FCGI::Spawn|FCGI::Spawn>'s CPAN distributi
 
 use POSIX ":sys_wait_h";
 use Sub::Name;
+use Carp;
 use FCGI::Spawn::ConfigFile;
 use FCGI::Spawn::BinUtils ':scripts';
 
@@ -182,15 +183,18 @@ my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
 my( $preload, $no_detach, $time_limit, $soft_tl, ) = ( 0, 0, 60, 1, );
 my( $mm_file, $mm_size ) = ( '/tmp/fcgi_spawn_scoreboard.lck', 65535 );
 my $argv_lookup = {
-  c => \$config_path, p => \$pid_file, l => \$log_file, u => \$user, g => \$group,
-  s => \$ENV{FCGI_SOCKET_PATH},
-  t => sub{ $time_limit = shift @ARGV; }, stl => sub{ $soft_tl = shift @ARGV; },
-  e => [ \$redefine_exit => 1 ], pl => [ \$preload => 1 ], nd => [ \$no_detach => 1 ],
-  h => \&print_help_exit,
+  'c' => \$config_path, 'p' => \$pid_file, 'l' => \$log_file, 'u' => \$user,
+  'g' => \$group,
+  's' => \$ENV{FCGI_SOCKET_PATH},
+  't' => subname( 'time_limit_init' => sub{ $time_limit = shift @ARGV; }, ),
+  'stl' => subname( 'soft_tl_init' => sub{ $soft_tl = shift @ARGV; }, ),
+  'e' => [ \$redefine_exit => 1, ], 'pl' => [ \$preload => 1, ],
+  'nd' => [ \$no_detach => 1, ],
+  'h' => \&print_help_exit,
 };
 $argv_lookup->{ '?' } = $argv_lookup->{ h };
 $argv_lookup = { map{ "-".$_ => $argv_lookup->{ $_ } } keys %$argv_lookup };
-my $argv_ref_lookup = { SCALAR => subname( argv_scalar_lookup => sub{ ${ shift @_ } = shift @ARGV; } ),
+my $argv_ref_lookup = { SCALAR => subname( 'argv_scalar_lookup' => sub{ ${ shift @_ } = shift @ARGV; } ),
     ARRAY => subname( argv_hash_lookup => sub{ my $a = shift; ${ $a->[ 0 ] } = $a->[ 1 ]; } ),
     CODE => subname( argv_code_lookup => sub{ &{ shift @_ } } ),
 };
@@ -210,7 +214,7 @@ while( my $arg0 = shift @ARGV ){
 BEGIN{
   $ENV{FCGI_SOCKET_PATH} = "/tmp/spawner.sock" unless defined $ENV{FCGI_SOCKET_PATH};
   if( grep { '-e' eq $_  } @ARGV ){
-    my $cref = sub {
+    my $cref = sub{
       if( 'FCGI::ProcManager' eq scalar caller ){
         CORE::exit @_;
       } else {
@@ -239,17 +243,17 @@ if( $redefine_exit ){
 
 
 
-defined( my $pid = fork ) or die "Forking logger: $!";
+defined( my $pid = fork ) or croak "Forking logger: $!";
 if( $pid ){
   if( defined $pid_file ){
-    open( my $pid_fh, ">", $pid_file ) or die "Writing $pid_file: $!";
+    open( my $pid_fh, ">", $pid_file ) or croak "Writing $pid_file: $!";
     print $pid_fh "$pid\n"; close $pid_fh;
   }
   if( $no_detach ){
-    map{ my $signal = $_; $SIG{ $signal } = sub{
+    map{ my $signal = $_; $SIG{ $signal } = subname( 'signal_handler' => sub{
                                                 $signal = ( $signal eq 'INT' ) ? 'TERM' : $signal ;
                                                 kill $signal => $pid ;
-                                              };
+                                              } );
     } qw/INT HUP TERM/;
     my $rv = waitpid $pid => 0;
   }
@@ -259,12 +263,12 @@ if( $pid ){
 
 unless( $no_detach ){
   re_open_log $log_file;
-  $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
+  $SIG{ USR1 } = subname( 're_open_log_file' => sub{ re_open_log( $log_file ); }, );
 }
 
 my $conf = FCGI::Spawn::ConfigFile->new();
-my $gid = getgrnam( $group ); die "Get ( probably non-existent ) group $group: $!" if $gid == 0;
-my $uid = getpwnam( $user );  die "Get ( probably non-existent ) user $user: $!" if $uid == 0;
+my $gid = getgrnam( $group ); croak "Get ( probably non-existent ) group $group: $!" if $gid == 0;
+my $uid = getpwnam( $user );  croak "Get ( probably non-existent ) user $user: $!" if $uid == 0;
 
 my( $shared, $ipc ); $shared={};
 
@@ -277,7 +281,7 @@ if( $time_limit ){
 }
 $conf->set_sock_name( $ENV{FCGI_SOCKET_PATH} );
 
-defined( my $spawn_pid = fork ) or die "Forking spawn: $!";
+defined( my $spawn_pid = fork ) or croak "Forking spawn: $!";
 if( $spawn_pid ){
   #$SIG{ CHLD } = 'IGNORE';
   map{ my $signal = $_; $SIG{ $signal } = sig_handle( $signal => $spawn_pid );
@@ -291,7 +295,7 @@ if( $spawn_pid ){
         if( $longtitude >= $time_limit ){
           if( $soft_tl ){
             kill 'TERM' => $pid;
-            sleep $soft_tl if kill 0 => $pid;
+            sleep $soft_tl if kill 0 => $pid; # TBD: should sleep asynchronously
           }
           kill( 'KILL' => $pid ) if kill 0 => $pid;
           delete $pid_callouts->{ $pid };
@@ -310,24 +314,24 @@ if( $spawn_pid ){
 $conf->read_fsp_config_file( $config_path );
 
 eval { require FCGI::Spawn; FCGI::Spawn->import;
-1; } or die $!;
+1; } or croak $!;
 
 my $spawn = FCGI::Spawn->new( $conf, )
-  or die "$@ $!";
+  or croak "$@ $!";
 
 if( defined( $conf->get_chroot_path ) ){
-  chroot( $conf->get_chroot_path ) or die "$@ $!";
+  chroot( $conf->get_chroot_path ) or croak "$@ $!";
 }
 
-setgid( $gid ); $) = "$gid $gid"; $( = $gid; die "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
-setuid( $uid ); $> = $uid; $< = $uid; die "Set user $user($uid): $!" if ( $< != $uid ) or ( $> != $uid );
+setgid( $gid ); $) = "$gid $gid"; $( = $gid; croak "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
+setuid( $uid ); $> = $uid; $< = $uid; croak "Set user $user($uid): $!" if ( $< != $uid ) or ( $> != $uid );
 
-setsid or die "Setting session: $!";
+setsid or croak "Setting session: $!";
 
 my $preloaders = { nonprepared => [], prepared => [], };
 if( $preload ){
   FCGI::Spawn::ModPerl->new if $spawn->{ mod_perl };
-  opendir( my $preloaders_dh, $config_path ) or die "Opening path $config_path: $!";
+  opendir( my $preloaders_dh, $config_path ) or croak "Opening path $config_path: $!";
   while( my $fn = readdir $preloaders_dh ){
     next if grep { $_ eq $fn } qw/. ../;
     my $full_fn = join '/', $config_path, $fn;
@@ -341,7 +345,7 @@ if( $preload ){
     $preloaders->{ $_  } = [
       map{
         my $str = '';
-        open( my $preloader_fh, "<", $_ ) or die "Open $_: $!";
+        open( my $preloader_fh, "<", $_ ) or croak "Open $_: $!";
         while( <$preloader_fh> ){
           $str .= $_;
         }
@@ -362,7 +366,7 @@ if( $preload ){
   map{
     # TBD: Try::Tiny
     eval "$_ ; 1;" ## no critic
-    or die "$_\n $@ $!";
+    or croak "$_\n $@ $!";
   } @{ $preloaders->{ nonprepared } };
 
 }
@@ -378,7 +382,7 @@ if( $preload ){
         warn "$@\nterminating PM pid $spawn_pid";
         kill 'TERM', $spawn_pid;
         waitpid $spawn_pid, 0;
-        die $@; # should not happen;
+        croak $@; # should not happen;
       }
   } @{ $preloaders->{ prepared } };
 }

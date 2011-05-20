@@ -30,7 +30,7 @@ sub check_out{
 }
 
 sub check{
-  croak( 'Method must be implemented in a  descendant class' );
+  croak( 'Method must be implemented in a descendant class' );
 }
 
 1;

@@ -658,10 +658,11 @@ sub _callout {
   $0 = $procname if $self->{ procname };
   %ENV = %save_env if $self->{ save_env };
 }
+
 sub callout {
   my $self = shift;
     if( $self->{ mod_perl } ){
-      my $handlers = Apache->request->{ HANDLERS }; #for cleanups assigned on preload
+      my $handlers = Apache->request->{ HANDLERS }; # for cleanups assigned on preload
       FCGI::Spawn::ModPerl->new;
       Apache->request->{ HANDLERS } = $handlers;
       $self->{ saved_handlers } = $handlers; #for modperl_reset

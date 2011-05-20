@@ -21,10 +21,18 @@ sub make_env{
 
 sub make_content{
   my $self = shift;
-  $content = $self -> make_test_seq;
+  my $content = $self -> make_test_seq;
   # env attr change
   $self -> get_env -> { 'CONTENT_LENGTH' } = length( $$content, );
   $content;
+}
+
+sub make_cgi_name{
+  my $self = shift;
+  my $cgi = $self -> SUPER::make_cgi_name;
+  $cgi =~ s/_post([^\/]+)$/$1/;
+  #$cgi =~ s/(\/[^_\/]+)(_[^\/]+)(\.[^\/]+)$/$1$3/;
+  return $cgi;
 }
 
 1;

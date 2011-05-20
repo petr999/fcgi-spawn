@@ -209,6 +209,8 @@ Default: FCGI::Spawn::statnames_to_policy( 'mtime' ) ( statnames_to_policy() fun
 
 Same as C<stats> and C<stats_policy> but for xinc() feature ( see below ).
 
+Default: 1 and mtime, correspondently.
+
 =item * clean_inc_hash
 
 when set to 1 points to clean out the requested via C<FastCGI> file from %INC after every processed request.
@@ -656,10 +658,11 @@ sub _callout {
   $0 = $procname if $self->{ procname };
   %ENV = %save_env if $self->{ save_env };
 }
+
 sub callout {
   my $self = shift;
     if( $self->{ mod_perl } ){
-      my $handlers = Apache->request->{ HANDLERS }; #for cleanups assigned on preload
+      my $handlers = Apache->request->{ HANDLERS }; # for cleanups assigned on preload
       FCGI::Spawn::ModPerl->new;
       Apache->request->{ HANDLERS } = $handlers;
       $self->{ saved_handlers } = $handlers; #for modperl_reset
@@ -688,7 +691,7 @@ sub prepare {
   $proc_manager->pm_manage();
   $self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
   $self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-  srand if $self->{ seed_rand }; # make entropy different among forks
+  # srand if $self->{ seed_rand }; # make entropy different among forks
   $self->{ is_prepared } = 1;
 }
 
@@ -771,6 +774,7 @@ sub reload_symtable_by_module{
             $INC{ $key } = $value;
           } else {
             #$symtab_container->{ $symtab_key } = $symtab;
+            undef $symtab_container->{ $symtab_key };
             delete $symtab_container->{ $symtab_key };
           }
         }
@@ -818,7 +822,9 @@ sub prespawn_dispatch {
   $self->clean_xinc_modified if $self->{ x_stats };
   if( $self->{clean_main_space} ){ # actual cleaning vars
     foreach ( keys %main:: ){
-      delete $main::{ $_ } unless $self->defined_state( 'fcgi_spawn_main', $_ ) ;
+      unless( $self->defined_state( 'fcgi_spawn_main', $_ ) ){
+        undef $main::{ $_ }; delete $main::{ $_ };
+      }
     }
   }
   $self->ipc_pid_insert;
@@ -942,6 +948,7 @@ sub clean_inc_modified {
         }
       }
     }
+    # if( $modified and $module =~ m/Mod.pm$/ ) { print STDERR $module; }
     $self->{ reloader }->( $module ) if $modified and ( $module ne $sn );
   }
 }

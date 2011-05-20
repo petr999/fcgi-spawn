@@ -9,6 +9,7 @@ use Carp;
 extends( 'FCGI::Spawn::Tests::Cgi' );
 
 has( qw/trials    is ro   isa Int   required 1    default 20/, );
+has( qw/inverted  is ro   isa Bool  default 0/, );
 
 sub check{
   my $self = shift;
@@ -25,6 +26,7 @@ sub check{
     last unless $rv;
   }
   my $descr = $self -> get_descr;
+  if( $self -> get_inverted ){ $rv = not $rv; }
   unless( $rv ){ $descr .= ": $$err"; }
   ok( $rv => $descr, );
   return $rv;

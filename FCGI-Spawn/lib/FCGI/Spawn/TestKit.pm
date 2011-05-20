@@ -33,6 +33,10 @@ sub make_name_from_class{
   $name = lc $name;
 }
 
+sub init_tests_list{
+  croak( "Init tests list in a subclass please" );
+}
+
 sub make_class_name{
   my $name = shift;
   $name = basename( $name );

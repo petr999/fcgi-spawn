@@ -43,7 +43,9 @@ sub check{
   my( $out => $err, ) = $self -> request;
   my $rv = $self -> parse( $out, $err );
   my $descr = $self -> get_descr;
-  unless( $rv ){ $descr .= ": $$err"; }
+  my $failure = $self -> get_failure;
+  unless( defined $failure ){ $failure = ''; }
+  unless( $rv ){ $descr .= ": $$err $failure"; }
   ok( $rv => $descr, );
   return ( $rv => $err, );
 }
@@ -74,11 +76,11 @@ sub make_sock{
   my $sock = $util -> sock_client;
 }
 
-
 sub parse{
   my( $self, ( $out => $err ), ) = @_;
   croak( "Parse error: $$err", ) if defined( $$err ) and length( $$err );
-  croak( "No HTTP header in stdout: $$out" )
+  my $sn = $self -> get_env -> { 'SCRIPT_FILENAME' };
+  croak( "No HTTP header in $sn stdout: $$out" )
     unless $$out =~ s/^([^\r\n]+\r?\n\r?)+\r?\n\r?(.*)$/$2/ms;
   unless( defined $$err ){ $$err = ''; }
   if( $self -> get_is_response_json ){ $out = decode_json( $$out ); }

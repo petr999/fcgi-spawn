@@ -57,12 +57,12 @@ has( qw/timeout      is ro   isa Int    default/ => $timeout, 'initializer'
 has( qw/pid      is rw   isa Int/ );
 has( qw/cmd_args    is ro   isa ArrayRef   default/ => sub{ []; }, );
 has( qw/conf    is ro   isa Str default/ => '',
-    'initializer' => sub{
+    'initializer' => subname( 'conf_init' =>sub{
       my( $self, $value, $set, $attr, ) = @_;
       my $set_val = $b_conf;
       if( length $value ){ $set_val .= "/$value"; }
       $set -> ( $set_val );
-    },
+    }, ),
 );
 
 foreach my $p_name ( keys %bnames ){
@@ -114,6 +114,10 @@ sub BUILD{
     $self -> rm_files_if_exists;
     return $self;
 };
+
+sub retr_conf_presets  :Export( :DEFAULT ){
+  return $conf_presets;
+}
 
 sub make_timeout{
   my( $self, $value, $set, $attr, ) = @_;
@@ -308,7 +312,7 @@ sub read_pidfile{
       }
       last;
     } else {
-      my $wp = waitpid( $ppid => WNOHANG ) != -1;
+      my $wp = waitpid( $ppid => WNOHANG, ) != -1;
       unless( $wp or grep { $_ eq '-nd' } @{ $self -> get_cmd_args } ){
         $self -> inspect_log;
       }

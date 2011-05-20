@@ -1,5 +1,8 @@
 package XStats;
 
+use strict;
+use warnings;
+
 use Perl6::Export::Attrs;
 use File::Slurp;
 

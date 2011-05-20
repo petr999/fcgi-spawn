@@ -17,7 +17,7 @@ foreach( 0..9 ){
   $rand_env{ $key_seed } = $seed;
 }
 
-%ENV = ( %rand_env, %ENV );
+%ENV = ( %rand_env => %ENV, );
 
 print "Content-type: text/json\n\n"
   , encode_json( \%old_env ),
