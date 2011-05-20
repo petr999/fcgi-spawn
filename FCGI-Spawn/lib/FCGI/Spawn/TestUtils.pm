@@ -25,12 +25,12 @@ use Carp;
 const( my $timeout => defined( $ENV{ TIMEOUT } ) ? $ENV{ TIMEOUT } : 30 );
 const( my $etc_test => 'etc-test', );
 const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], }, 
+    'general' => { 'conf' => '', },
     'un_clean_main' => { 'conf' => '', },
     'stats' => { 'conf' => '', },
     'x_stats' => { 'conf' => '', },
     'log_rotate' => { 'conf' => '', },
     'pre_load' => { 'cmd_args' => [ qw/-pl/ ], },
-    'x_stats_cached' => { 'conf' => '', },
     'max_requests' => { 'conf' => '', },
     'fcgi' => { 'conf' => '', },
     'chroot'  => { 'cgi_dir' => "/$etc_test/cgi" },

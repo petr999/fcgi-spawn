@@ -47,6 +47,8 @@ sub make_class_name{
 
 sub concat_class_name{
   my( $base, $name ) = @_;
+  my $base_ref = ref( $base );
+  if( defined( $base_ref ) and length( $base_ref ) ){ $base = $base_ref; }
   my $class_name = join '', map{ ucfirst $_ } split /_/, $name;
   $class_name = $base."::$class_name";
 }
