@@ -1,4 +1,4 @@
-package FCGI::Spawn::Tests::TimeLimitKIll;
+package FCGI::Spawn::Tests::TimeLimitKill;
 
 use Moose;
 use MooseX::FollowPBP;

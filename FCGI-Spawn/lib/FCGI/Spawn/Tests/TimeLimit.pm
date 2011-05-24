@@ -39,7 +39,7 @@ sub check{
       $self -> set_failure( "Ended before minimal time" );
     }
   } else {
-    my( $out => $err, ) = $self -> request;
+    try{ my( $out => $err, ) = $self -> request; };
     CORE::exit();
   }
   my $descr = $self -> get_descr;
