@@ -34,6 +34,7 @@ const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], },
     'max_requests' => { 'conf' => '', },
     'fcgi' => { 'conf' => '', },
     'chroot'  => { 'cgi_dir' => "/$etc_test/cgi" },
+    'time_limit' => { 'conf' => '', 'cmd_args' => [ qw/-t 10 -stl 10/, ], },
   }, );
 const( my $b_conf
   => realpath( dirname( __FILE__ )."/../../../$etc_test" ) );

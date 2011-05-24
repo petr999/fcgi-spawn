@@ -48,7 +48,7 @@ Those are optional:
   -t NN             set callout time limit to NN seconds ( 60 by default,
                     0 disables the feature );
   -stl              wait NN seconds for called out process to terminate by
-                    time limit before kill it ( 1 by default, 9 disables the
+                    time limit before kill it ( 1 by default, 0 disables the
                     feature );
   -mmf              name of the lock file for the -t feature ( defaults to
                     /tmp/fcgi_spawn_scoreboard.lck );
@@ -169,7 +169,8 @@ C<LGPL>, as of the MANIFEST file in L<FCGI::Spawn|FCGI::Spawn>'s CPAN distributi
 
 =cut
 
-use POSIX ":sys_wait_h";
+use POSIX qw/setuid setgid setsid :sys_wait_h WNOHANG/;
+
 use Sub::Name;
 use Carp;
 use FCGI::Spawn::ConfigFile;
@@ -232,8 +233,6 @@ BEGIN{
   }
 }
 
-use POSIX qw/setuid setgid setsid/;
-
 if( $redefine_exit ){
   use subs qw/exit/ ;
 }
@@ -285,16 +284,21 @@ if( $spawn_pid ){
   } qw/INT HUP TERM/;
   $0 = 'fcgi_spawn';
   if( $time_limit ){
-    while( waitpid $spawn_pid => WNOHANG ){ # while spawn_pid is running; it's auto-buried then
+    while( ( -1 != waitpid $spawn_pid => WNOHANG )
+        or ( 0 !=  kill 0 => $spawn_pid )
+      ){ # while spawn_pid is running; it's auto-buried then
       my $pid_callouts = $conf->get_pid_callouts;
       foreach my $pid ( keys %$pid_callouts){
         my $longtitude = time - $pid_callouts->{ $pid };
         if( $longtitude >= $time_limit ){
           if( $soft_tl ){
             kill 'TERM' => $pid;
-            sleep $soft_tl if kill 0 => $pid; # TBD: should sleep asynchronously
+            print STDERR "KILLED: $pid TIME LIMIT: $time_limit\n";
+            sleep $soft_tl unless ( -1 == waitpid $pid => WNOHANG )
+              and ( 0 ==  kill 0 => $pid ); # TBD: should sleep asynchronously
           }
-          kill( 'KILL' => $pid ) if kill 0 => $pid;
+          kill( 'KILL' => $pid ) unless ( -1 == waitpid $pid => WNOHANG )
+              and ( 0 ==  kill 0 => $pid );
           delete $pid_callouts->{ $pid };
         }
       }

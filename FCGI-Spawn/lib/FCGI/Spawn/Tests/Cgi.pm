@@ -16,6 +16,7 @@ extends( 'FCGI::Spawn::Tests' );
 has( 'env' => ( qw/is ro    isa HashRef   required 1 lazy 1 builder make_env/ ) );
 has( 'content' => ( qw/is ro    isa ScalarRef   required 1 lazy 1 builder make_content/, ) );
 has( qw/is_response_json    is ro isa Int default 1/, );
+has( qw/util    is ro   isa FCGI::Spawn::TestUtils    required 1/, );
 
 sub make_env{
   my $self = shift;
@@ -31,12 +32,14 @@ sub make_content{
 
 sub make_cgi_name{
   my $self = shift;
-  my $name = $self -> init_name;
+  my $name = $self -> make_cgi_basename;
   my $util = $self -> get_util;
   my $cgi_dir = $util -> get_cgi_dir;
   my $cgi = "$cgi_dir/$name.cgi";
   return $cgi;
 }
+
+sub make_cgi_basename{ my $self = shift; $self -> get_name( @_ ); }
 
 sub check{
   my $self = shift;
@@ -47,7 +50,7 @@ sub check{
   unless( defined $failure ){ $failure = ''; }
   unless( $rv ){ $descr .= ": $$err $failure"; }
   ok( $rv => $descr, );
-  return ( $rv => $err, );
+  return $rv;
 }
 
 sub request{
