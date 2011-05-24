@@ -8,7 +8,7 @@ use MooseX::FollowPBP;
 use Perl6::Export::Attrs;
 
 use File::Temp;
-use English qw/$UID/;
+use English qw/$UID $GID/;
 use File::Basename qw/dirname/;
 use Cwd qw/realpath/;
 use POSIX ":sys_wait_h";
@@ -24,21 +24,16 @@ use Carp;
 
 const( my $timeout => defined( $ENV{ TIMEOUT } ) ? $ENV{ TIMEOUT } : 30 );
 const( my $etc_test => 'etc-test', );
+const( my $general_preset => { 'conf' => '', 'cmd_args' => [ qw/-t 0/ ], }, );
 const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], }, 
-    'general' => { 'conf' => '', },
-    'un_clean_main' => { 'conf' => '', },
-    'stats' => { 'conf' => '', },
-    'x_stats' => { 'conf' => '', },
-    'log_rotate' => { 'conf' => '', },
-    'pre_load' => { 'cmd_args' => [ qw/-pl/ ], },
-    'max_requests' => { 'conf' => '', },
-    'fcgi' => { 'conf' => '', },
-    'chroot'  => { 'cgi_dir' => "/$etc_test/cgi" },
-    'time_limit' => { 'conf' => '', 'cmd_args' => [ qw/-t 10 -stl 10/, ], },
+    map( { $_ => $general_preset, }
+      qw/general un_clean_main stats x_stats log_rotate max_requests fcgi /,
+    ),
+    'pre_load'      => { 'cmd_args' => [ qw/-pl -t 0/ ], },
+    'chroot'        => { 'cgi_dir' => "/$etc_test/cgi" },
+    'time_limit'    => { 'conf' => '', 'cmd_args' => [ qw/-t 10 -stl 10/, ], },
   }, );
-const( my $b_conf
-  => realpath( dirname( __FILE__ )."/../../../$etc_test" ) );
-
+const( my $b_conf => realpath( dirname( __FILE__ )."/../../../$etc_test" ) );
 
 my %bnames =  ( 'etc_test' => $etc_test,
                 'pid_fname' => 'fcgi_spawn.pid', 'log_fname' => 'fcgi_spawn.log',
@@ -53,28 +48,19 @@ foreach( qw/pid log/ ){
 }
 $bnames{ 'cgi_dir' } = join '/', $b_conf => 'cgi';
 
-has( qw/timeout      is ro   isa Int    default/ => $timeout, 'initializer'
-  => \&make_timeout, );
-has( qw/pid      is rw   isa Int/ );
-has( qw/cmd_args    is ro   isa ArrayRef   default/ => sub{ []; }, );
-has( qw/conf    is ro   isa Str default/ => '',
-    'initializer' => subname( 'conf_init' =>sub{
-      my( $self, $value, $set, $attr, ) = @_;
-      my $set_val = $b_conf;
-      if( length $value ){ $set_val .= "/$value"; }
-      $set -> ( $set_val );
-    }, ),
-);
+has( qw/timeout is ro isa Int default/ => $timeout, );
+has( qw/pid is rw isa Int/ );
+has( qw/cmd_args is ro isa ArrayRef default/ => sub{ []; }, );
+has( qw/conf is ro isa Str initializer init_conf default/
+  => '', );
 
 foreach my $p_name ( keys %bnames ){
   my $b_default = $bnames{ $p_name };
   my $ref = ref $b_default;
-  my $isa = length $ref
-    ? ucfirst( lc( $ref ) ).'Ref'
-    : 'Str'
-  ;
-  my $default = $b_default;
-  $default = sub{ $b_default } if length $ref;
+  my $isa = $ref ? ucfirst( lc( $ref ) ).'Ref' : 'Str' ;
+  my $default;
+  if( $ref ){ $default = subname( "init_$p_name" => sub{ $b_default }, ); }
+  else { $default = $b_default; }
   has $p_name => ( qw/is ro/,    'isa' => $isa, 'default' => $default, );
 }
 
@@ -117,31 +103,18 @@ sub BUILD{
     return $self;
 };
 
+sub retr_general_preset  :Export( :DEFAULT ){ return $general_preset; }
+
+sub init_conf{
+  my( $self, $value, $set, $attr, ) = @_;
+  my $set_val = $b_conf;
+  if( length $value ){ $set_val .= "/$value"; }
+  $set -> ( $set_val, );
+}
+
 sub retr_conf_presets  :Export( :DEFAULT ){
   return $conf_presets;
 }
-
-sub make_timeout{
-  my( $self, $value, $set, $attr, ) = @_;
-  $set->(  $value, ) if defined $value;
-}
-
-# TODO: deprecated
-sub cgi_output_parser :Export( :DEFAULT ) {
-  my $cmp = shift;
-  return subname( "parser_output_eq_$cmp"
-    => sub{
-      subname( "output_eq_$cmp"
-        => sub{
-              my $str = shift;
-              $str =~ s/^.*[\r\n]([^\r\n]+)$/$1/ms;
-              $str eq $cmp;
-            },
-        );
-      },
-  );
-}
-
 
 sub share_var :Export( :DEFAULT ){
   my( $ref, $ipc_ref ) = @_;
@@ -284,13 +257,17 @@ sub spawn_fcgi{
     ? ( '-nd', )
     : ( '-l' => $log_fname, )
   ;
-  @args = ( @args, "-s" => $sock_name,
-    "-p" =>  $pid_fname, "-c" => $conf_dname, "-u" => $user, 
-    "-g" => $group,
+  @args = ( @args,
+    "-s" => $sock_name, "-p" =>  $pid_fname, "-c" => $conf_dname,
   );
+  if( $UID == 0 ){ push( @args, "-u" => $user, "-g" => $group, ); }
+  else{ push( @args, "-u" => scalar getpwuid( $UID ),
+    "-g" => scalar getgrgid( shift( @{ [ split( /\s+/, $GID ), ] }, ), ) ); 
+  }
   my $cmd_args = $self -> get_cmd_args;
   push @args, @$cmd_args if @$cmd_args > 0;
   @cmd = ( @cmd, @args, );
+  if( $debug ){ diag( join( ' ', @cmd ) . "\n"; }
   return sub{ exec @cmd };
 }
 

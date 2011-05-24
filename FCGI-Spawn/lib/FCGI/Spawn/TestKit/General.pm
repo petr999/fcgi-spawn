@@ -14,9 +14,10 @@ __PACKAGE__->meta->make_immutable;
 sub init_tests_list{
   my $self = shift;
   my $conf_presets = retr_conf_presets();
+  my $general_preset = retr_general_preset();
   my @kits = ();
   while( my( $kit => $preset, ) = each( %$conf_presets ) ){
-    if( $preset ~~ { 'conf' => '', } ){ push(  @kits => $kit, ); }
+    if( $preset ~~ $general_preset ){ push(  @kits => $kit, ); }
   }
   my %seen_tests = ();
   foreach my $kit( @kits ){
