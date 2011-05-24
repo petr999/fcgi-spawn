@@ -11,6 +11,8 @@ extends( 'FCGI::Spawn::Tests::Cgi' );
 has( qw/trials    is ro   isa Int   required 1    default 20/, );
 has( qw/inverted  is ro   isa Bool  default 0/, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub check{
   my $self = shift;
   my $trials = $self -> get_trials;

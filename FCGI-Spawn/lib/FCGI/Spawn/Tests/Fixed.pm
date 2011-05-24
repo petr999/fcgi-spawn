@@ -9,6 +9,8 @@ extends( 'FCGI::Spawn::Tests::Cgi' );
 
 has( qw/test_var    is ro isa Ref   required 1 builder init_test_var/ );
 
+__PACKAGE__->meta->make_immutable;
+
 sub enparse{
   my( $self => ( $out => $err, ), ) = @_;
   my $test_var = $self -> get_test_var;

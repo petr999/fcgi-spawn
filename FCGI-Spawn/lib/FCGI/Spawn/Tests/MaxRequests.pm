@@ -18,8 +18,9 @@ has( qw/pids  is rw isa ArrayRef[Int]   default/
 has( qw/max_pids    is ro isa Int default 10/, );
 has( '+descr' => ( 'default' => 'Max requests were reached, new processes were started', ) );
 
-
 override( 'request' => \&pick_try_number, );
+
+__PACKAGE__->meta->make_immutable;
 
 sub pick_try_number{
   my( $self => $tn, ) = @_;

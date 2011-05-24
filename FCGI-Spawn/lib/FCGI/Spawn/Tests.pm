@@ -12,6 +12,8 @@ has( qw/name    is ro   required 1    isa Str   builder init_name/, );
 has( qw/descr    is rw    isa Str/, );
 has( qw/rand_max    is ro   isa Int   default 4294967295/ );
 
+__PACKAGE__->meta->make_immutable;
+
 sub init_name{ # ::Cgi use this sub for cgi's name
   my $self = shift;
   my $class = ref( $self ) ? ref( $self ) : $self;

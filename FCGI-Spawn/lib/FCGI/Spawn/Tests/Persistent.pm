@@ -15,6 +15,8 @@ has( qw/sngl_chng   is ro isa Bool required 1 default 1/, );
 
 augment( 'parse' => \&enparse, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub enparse{
   my( $self, ( $out => $err, ), ) = @_;
   my $rv;

@@ -19,6 +19,7 @@ has( '+env' => ( qw/is rw/ ) );
 has( '+content' => ( qw/isa CodeRef/, ), );
 has( '+sngl_chng' => ( qw/default 0/, ), );
 
+__PACKAGE__->meta->make_immutable;
 
 sub make_env{
   my $self = shift;

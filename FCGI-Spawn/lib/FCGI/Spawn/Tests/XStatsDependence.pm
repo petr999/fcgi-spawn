@@ -9,6 +9,8 @@ extends( 'FCGI::Spawn::Tests::ChangeCgi', );
 
 has( '+descr' => ( 'default' => 'x_stats templates recompilation by dependence', ) );
 
+__PACKAGE__->meta->make_immutable;
+
 sub make_cgi{
   my( $self => $name, $cgi => $cgi_dir, ) = @_;
   my $tmpl_fn = join '/', $cgi_dir => 'xsd_changeable.tmpl';

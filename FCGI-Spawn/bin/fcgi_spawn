@@ -284,22 +284,36 @@ if( $spawn_pid ){
   } qw/INT HUP TERM/;
   $0 = 'fcgi_spawn';
   if( $time_limit ){
-    while( ( -1 != waitpid $spawn_pid => WNOHANG )
-        or ( 0 !=  kill 0 => $spawn_pid )
-      ){ # while spawn_pid is running; it's auto-buried then
-      my $pid_callouts = $conf->get_pid_callouts;
+    my $pid_callouts = $conf->get_pid_callouts;
+    my %pids_sent = ();
+    until( is_process_dead( $spawn_pid ) ){ # while spawn_pid is running; it's auto-buried then
       foreach my $pid ( keys %$pid_callouts){
         my $longtitude = time - $pid_callouts->{ $pid };
-        if( $longtitude >= $time_limit ){
+        if( $longtitude >= $time_limit and not defined $pids_sent{ $pid } ){
           if( $soft_tl ){
             kill 'TERM' => $pid;
-            print STDERR "KILLED: $pid TIME LIMIT: $time_limit\n";
-            sleep $soft_tl unless ( -1 == waitpid $pid => WNOHANG )
-              and ( 0 ==  kill 0 => $pid ); # TBD: should sleep asynchronously
+            $pids_sent{ $pid } = 'TERM' unless is_process_dead( $pid, );
+          } else {
+            kill( 'KILL' => $pid ) unless is_process_dead( $pid, );
+            $pids_sent{ $pid } = 'KILL';
           }
-          kill( 'KILL' => $pid ) unless ( -1 == waitpid $pid => WNOHANG )
-              and ( 0 ==  kill 0 => $pid );
-          delete $pid_callouts->{ $pid };
+        }
+      }
+      while( my( $pid => $sig_sent, ) = each( %pids_sent ) ){
+        if( defined( $$pid_callouts{ $pid } ) ){
+          if( $soft_tl and ( 'TERM' eq $sig_sent ) ){
+            unless( is_process_dead( $pid ) ){
+              my $seconds = time - $$pid_callouts{ $pid };
+              if( $seconds > $soft_tl ){
+                kill( 'KILL' => $pid ) unless is_process_dead( $pid, );
+                $pids_sent{ $pid } = 'KILL';
+              }
+            }
+          }
+          if( is_process_dead( $pid, ) ){
+            delete $$pid_callouts{ $pid };
+            delete $pids_sent{ $pid };
+          }
         }
       }
       sleep 1;

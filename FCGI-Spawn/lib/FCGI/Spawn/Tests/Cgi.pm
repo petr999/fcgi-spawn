@@ -18,6 +18,8 @@ has( 'content' => ( qw/is ro    isa ScalarRef   required 1 lazy 1 builder make_c
 has( qw/is_response_json    is ro isa Int default 1/, );
 has( qw/util    is ro   isa FCGI::Spawn::TestUtils    required 1/, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub make_env{
   my $self = shift;
   # env is lazy cause util is needed here and to reini

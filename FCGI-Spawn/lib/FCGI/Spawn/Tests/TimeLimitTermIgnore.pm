@@ -10,6 +10,8 @@ extends( 'FCGI::Spawn::Tests::TimeLimit', );
 has( '+descr' => ( 'default'
   => 'No same value limit CGI execution time if CGI ignores TERM', ), );
 
+__PACKAGE__->meta->make_immutable;
+
 sub on_time_out{
   my( $self, $died => $pid, ) = @_;
   if( $died ){

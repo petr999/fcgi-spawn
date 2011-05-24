@@ -18,6 +18,8 @@ has( qw/failure    is rw   isa Str    default/ => '', );
 
 override( 'BUILDARGS' => \&override_buildargs, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub override_buildargs{
   my $class = shift;
   my $args = super();

@@ -2,12 +2,13 @@
 
 package FCGI::Spawn::ConfigFile;
 
+use Moose;
+use MooseX::FollowPBP;
+
 use FindBin;
 use Cwd qw/realpath/;
 use Const::Fast;
-
-use Moose;
-use MooseX::FollowPBP;
+use Carp;
 
 use FCGI::Spawn::BinUtils qw/make_shared/;
 
@@ -25,14 +26,15 @@ const my %PROPERTIES => ( qw/
   /,
   # not a config but may be passed to FCGI::Spawn->new
   qw/
-    time_limit              Int           
-    pid_callouts            HashRef
-    sock_name               Str
+    time_limit              Int           pid_callouts            HashRef
+    sock_name               Str           n_processes             Int
   / );
 
 while( my( $property, $is_a ) = each %PROPERTIES ){
   has(  $property  => ( 'is' => 'rw', 'isa' => $is_a, ) );
 }
+
+__PACKAGE__->meta->make_immutable;
 
 sub read_fsp_config_file {
   my $self = shift;
@@ -47,15 +49,16 @@ sub read_fsp_config_file_by_name {
   while( <$fcgi_config_fh> ){
     next if /^\s*(#|$)/;
     chomp; s/^\s+|\s+$//g;
-    if( my( $key, @val ) = split /\s+/, ){
-      my $method_name = "set_$key";
-      has(  $key  => ( 'is' => 'rw', 'isa' => 'Item', ) );
-      $self->$method_name( ( @val > 1 ) ? \@val : shift @val );
+    if( my( $key => @val, ) = split /\s+/, ){
+      if( defined $self -> meta -> find_attribute_by_name( $key ) ){
+        my $method_name = "set_$key";
+        $self->$method_name( ( @val > 1 ) ? \@val : shift @val );
+      } else {
+        croak( "Unknown attribute defined in $config_file: $key" );
+      }
     }
   }
   close $fcgi_config_fh;
 }
-
-# TBD __PACKAGE__->meta->make_immutable();
 
 1;

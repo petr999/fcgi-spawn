@@ -78,6 +78,7 @@ foreach my $p_name ( keys %bnames ){
   has $p_name => ( qw/is ro/,    'isa' => $isa, 'default' => $default, );
 }
 
+__PACKAGE__->meta->make_immutable;
 
 my $debug = defined( $ENV{ 'DEBUG' } ) ? $ENV{ 'DEBUG' } : 0;
 
@@ -145,9 +146,8 @@ sub cgi_output_parser :Export( :DEFAULT ) {
 sub share_var :Export( :DEFAULT ){
   my( $ref, $ipc_ref ) = @_;
   my $fn = File::Temp->new();
-  my $rv = &make_shared( [ $ref => $ipc_ref ] => {  mm_file => $fn,
-                           mm_size => 65535, 'uid' => $UID,
-                          },
+  my $rv = &make_shared( [ $ref => $ipc_ref ]
+    => {  mm_file => $fn, mm_size => 65535, 'uid' => $UID, },
   );
   defined( $rv ) and not( $rv ) and croak "No shared scalar: $!";
 }

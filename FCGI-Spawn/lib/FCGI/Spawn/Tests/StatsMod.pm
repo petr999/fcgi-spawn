@@ -10,6 +10,8 @@ extends( 'FCGI::Spawn::Tests::ChangeCgi', );
 
 has( '+descr' => ( 'default' => 'Used module change lead to CGI script file output change', ) );
 
+__PACKAGE__->meta->make_immutable;
+
 sub make_cgi{
   my( $self, $name ) = @_;
   my $env = $self -> get_env;

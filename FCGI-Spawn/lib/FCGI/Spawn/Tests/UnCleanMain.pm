@@ -15,4 +15,6 @@ with( 'FCGI::Spawn::Tests::RoleNegative', );
 
 has( '+descr' => ( 'default' => 'Not cleaning global variables from CGI programs', ), );
 
+__PACKAGE__->meta->make_immutable;
+
 1;

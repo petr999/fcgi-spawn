@@ -5,16 +5,18 @@ use MooseX::FollowPBP;
 
 use Test::More;
 use Const::Fast;
-use POSIX qw/WNOHANG/;
 use Try::Tiny;
 
 use FCGI::Spawn::TestUtils;
+use FCGI::Spawn::BinUtils qw/:testmodules/;
 
 extends( 'FCGI::Spawn::Tests::Cgi', );
 
 has( '+descr' => ( 'default' => 'Limit CGI execution time', ), );
 has( qw/timeout   is ro isa Int required 1 default 15/, );
 has( qw/time_min   is ro isa Int required 1 default 5/, );
+
+__PACKAGE__->meta->make_immutable;
 
 sub check{
   my $self = shift;
@@ -26,10 +28,7 @@ sub check{
     foreach ( 1.. $timeout ){
       $i ++;
       sleep 1;
-      waitpid $pid => WNOHANG;
-      $rv = ( -1 == waitpid $pid => WNOHANG,  )
-        && ( 0 == kill 0 => $pid );
-      use Data::Dumper; print Dumper $i, waitpid( $pid => WNOHANG, ), kill 0 => $pid;
+      $rv = is_process_dead( $pid );
       last if $rv;
     }
     unless( $rv ){ kill_proc_dead( $pid ); }

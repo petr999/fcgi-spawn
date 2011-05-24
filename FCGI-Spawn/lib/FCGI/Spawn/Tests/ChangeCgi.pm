@@ -18,6 +18,8 @@ has( qw/temp_files    is rw isa ArrayRef[Str]    default/
 augment( 'enparse' => \&change_cgi, );
 override( 'check' => \&check_and_clean_temp_files );
 
+__PACKAGE__->meta->make_immutable;
+
 sub BUILD{
   my $self = shift;
   $self -> orig_cgi;

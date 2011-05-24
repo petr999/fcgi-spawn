@@ -9,6 +9,8 @@ extends( 'FCGI::Spawn::Tests' );
 
 has( '+descr' => ( 'default' => 'Rotate log file by mean of sending USR1 to logger', ), );
 
+__PACKAGE__->meta->make_immutable;
+
 sub check{
   my $self = shift;
   my $util = $self -> get_util;

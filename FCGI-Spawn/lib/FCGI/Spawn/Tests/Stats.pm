@@ -11,6 +11,8 @@ has( '+descr' => ( 'default' => 'CGI script file change lead to output change', 
 
 augment( 'enparse' => \&change_cgi, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub make_cgi{
   my( $self, $name ) = @_;
   my $env = $self -> get_env;

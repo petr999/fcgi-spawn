@@ -11,6 +11,8 @@ has( '+descr' => ( 'default' => 'Serialization via POST', ), );
 
 has( '+test_var' =>( qw/is rw lazy 1/, ), );
 
+__PACKAGE__->meta->make_immutable;
+
 sub make_env{ 
   my $self = shift;
   my $orig_env = $self -> SUPER::make_env();

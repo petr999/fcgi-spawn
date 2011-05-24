@@ -16,6 +16,8 @@ has( qw/util    is rw   isa/ => 'FCGI::Spawn::TestUtils', );
 override( 'BUILDARGS' => \&override_buildargs, );
 augment( 'testify' => \&unspawn_if_pid, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub override_buildargs{
   my $class = shift;
   my $args = super();

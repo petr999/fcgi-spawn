@@ -9,6 +9,8 @@ use Carp;
 
 use FCGI::Spawn::TestUtils;
 
+__PACKAGE__->meta->make_immutable;
+
 sub init_tests_list{
   my $self = shift;
   my $conf_presets = retr_conf_presets();

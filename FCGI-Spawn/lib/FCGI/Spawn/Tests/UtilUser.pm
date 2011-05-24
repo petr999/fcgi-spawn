@@ -10,6 +10,8 @@ has( '+mandatory' => ( qw/default 1/, ), );
 
 augment( 'check_out' => \&check, );
 
+__PACKAGE__->meta->make_immutable;
+
 sub BUILD{
   my $self = shift;
   my $util = $self -> get_util;

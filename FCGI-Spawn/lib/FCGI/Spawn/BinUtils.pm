@@ -5,17 +5,18 @@ package FCGI::Spawn::BinUtils;
 use strict;
 use warnings;
 
+use POSIX qw/WNOHANG/;
 use Perl6::Export::Attrs;
 
 sub _init_ipc {
   my( $ipc_ref => $mm_scratch  ) = @_;
   unless( defined $$ipc_ref ){
-    eval{ require IPC::MM;
-    1; } or die "IPC::MM: $@ $!";
-    my $rv = $$ipc_ref = IPC::MM::mm_create( map{ $mm_scratch->{ $_ } } mm_size => 'mm_file', );
-    $rv or die "IPC::MM init: $@ $!";
+    eval{ require IPC::MMA;
+    1; } or die "IPC::MMA: $@ $!";
+    my $rv = $$ipc_ref = IPC::MMA::mm_create( map{ $mm_scratch->{ $_ } } mm_size => 'mm_file', );
+    $rv or die "IPC::MMA init: $@ $!";
     my $uid = $mm_scratch->{ 'uid' };
-    $rv = not IPC::MM::mm_permission( $$ipc_ref, '0600', $uid, -1);
+    $rv = not IPC::MMA::mm_permission( $$ipc_ref, '0600', $uid, -1);
     $rv or die "SHM unpermitted: $!"; # Return value invert
   }
 }
@@ -26,8 +27,8 @@ sub make_shared :Export( :scripts :testutils ) {
   &_init_ipc( $ipc_ref => $mm_scratch  );
   my $type = lc ref $ref; die unless length $type;
   my $method = "mm_make_$type";
-  my $tie_class = 'IPC::MM::' . ucfirst $type;
-  my $ipc_var = $IPC::MM::{ $method }->( $$ipc_ref );
+  my $tie_class = 'IPC::MMA::' . ucfirst $type;
+  my $ipc_var = $IPC::MMA::{ $method }->( $$ipc_ref );
   tie( ( $type eq 'hash' ) ? %$ref : $$ref, $tie_class , $ipc_var );
 }
 
@@ -65,7 +66,7 @@ Usage:
   -t NN     set callout time limit to NN seconds
               ( 60 by default, 0 disables feature )
   -stl      wait NN seconds for called out process to terminate by time limit
-              before kill it ( 1 by default, 9 disables the feature )
+              before kill it ( 1 by default, 0 disables the feature )
   -mmf      name of the lock file for the -t feature
   -mms      size of the shared memory segment for the -t feature
 EOT
@@ -75,6 +76,14 @@ EOT
 sub is_sock_tcp :Export( :modules :testutils ){
   my $rv = shift =~ m/^([^:]+):([^:]+)$/;
   wantarray ? ( $1 => $2, ) : $rv;
+}
+
+sub is_process_dead :Export( :scripts :testmodules ) {
+  my $pid = shift;
+  waitpid $pid => WNOHANG;
+  my $rv = ( -1 == waitpid $pid => WNOHANG,  )
+     && ( 0 == kill 0 => $pid );
+  return $rv;
 }
 
 1;

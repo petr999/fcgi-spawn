@@ -11,6 +11,8 @@ extends( 'FCGI::Spawn::Tests::Fixed', );
 has( '+env' => ( qw/lazy 1/, ), );
 has( '+descr' => ( 'default' => 'Serialization', ), );
 
+__PACKAGE__->meta->make_immutable;
+
 sub make_env{
   my $self = shift;
   my $env = $self -> SUPER::make_env();
