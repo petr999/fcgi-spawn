@@ -27,14 +27,13 @@ const( my $timeout => defined( $ENV{ TIMEOUT } ) ? $ENV{ TIMEOUT } : 30 );
 const( my $etc_test => 'etc-test', );
 tie( my %general_preset => 'Tie::IxHash', );
 const( %general_preset
-  => ( 'conf' => '', 'cmd_args' => [ qw/-pl -t 0/ ], ), );
+  => ( 'conf' => '', 'cmd_args' => [ qw/-pl -t 10 -stl 10/ ], ), );
 const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], }, 
     map( { $_ => \%general_preset, }
       qw/general un_clean_main stats x_stats log_rotate max_requests
-        fcgi pre_load/,
+        fcgi pre_load time_limit save_env/,
     ),
     'chroot'        => { 'cgi_dir' => "/$etc_test/cgi", },
-    'time_limit'    => { 'conf' => '', 'cmd_args' => [ qw/-t 10 -stl 10/, ], },
   }, );
 const( my $b_conf => realpath( dirname( __FILE__ )."/../../../$etc_test" ) );
 

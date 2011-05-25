@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use POSIX qw/WNOHANG/;
+use English qw/$UID/;
 use Perl6::Export::Attrs;
 use Carp;
 
@@ -16,8 +17,10 @@ sub _init_ipc {
     my $rv = $$ipc_ref = IPC::MMA::mm_create( map{ $mm_scratch->{ $_ } } mm_size => 'mm_file', );
     croak( "IPC::MMA init: $@ $!" ) unless $rv;
     my $uid = $mm_scratch->{ 'uid' };
-    $rv = not IPC::MMA::mm_permission( $$ipc_ref, '0600', $uid, -1);
-    croak( "SHM unpermitted: $!" ) unless $rv; # Return value invert
+    unless( $UID ){
+      $rv = not IPC::MMA::mm_permission( $$ipc_ref => '0600', $uid => -1,);
+      croak( "SHM unpermitted for $uid: $!" ) unless $rv; # Return value invert
+    }
   }
 }
 
