@@ -11,6 +11,7 @@ has( qw/mandatory    is ro   isa Bool   required 1    default 0/, );
 has( qw/name    is ro   required 1    isa Str   builder init_name/, );
 has( qw/descr    is rw    isa Str/, );
 has( qw/rand_max    is ro   isa Int   default 4294967295/ );
+has( qw/util    is ro   isa FCGI::Spawn::TestUtils    required 0/, );
 
 __PACKAGE__->meta->make_immutable;
 

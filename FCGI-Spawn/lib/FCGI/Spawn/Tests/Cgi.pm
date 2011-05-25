@@ -16,7 +16,7 @@ extends( 'FCGI::Spawn::Tests' );
 has( 'env' => ( qw/is ro    isa HashRef   required 1 lazy 1 builder make_env/ ) );
 has( 'content' => ( qw/is ro    isa ScalarRef   required 1 lazy 1 builder make_content/, ) );
 has( qw/is_response_json    is ro isa Int default 1/, );
-has( qw/util    is ro   isa FCGI::Spawn::TestUtils    required 1/, );
+has( qw/+util required 1/, );
 
 __PACKAGE__->meta->make_immutable;
 

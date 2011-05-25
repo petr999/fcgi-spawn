@@ -7,17 +7,17 @@ use warnings;
 
 use POSIX qw/WNOHANG/;
 use Perl6::Export::Attrs;
+use Carp;
 
 sub _init_ipc {
   my( $ipc_ref => $mm_scratch  ) = @_;
   unless( defined $$ipc_ref ){
-    eval{ require IPC::MMA;
-    1; } or die "IPC::MMA: $@ $!";
+    croak( "IPC::MMA: $@ $!" ) unless eval{ require IPC::MMA; 1; };
     my $rv = $$ipc_ref = IPC::MMA::mm_create( map{ $mm_scratch->{ $_ } } mm_size => 'mm_file', );
-    $rv or die "IPC::MMA init: $@ $!";
+    croak( "IPC::MMA init: $@ $!" ) unless $rv;
     my $uid = $mm_scratch->{ 'uid' };
     $rv = not IPC::MMA::mm_permission( $$ipc_ref, '0600', $uid, -1);
-    $rv or die "SHM unpermitted: $!"; # Return value invert
+    croak( "SHM unpermitted: $!" ) unless $rv; # Return value invert
   }
 }
 
@@ -25,7 +25,8 @@ sub make_shared :Export( :scripts :testutils ) {
   my( $refs, $mm_scratch, ) = @_;
   my( $ref, $ipc_ref ) = @$refs;
   &_init_ipc( $ipc_ref => $mm_scratch  );
-  my $type = lc ref $ref; die unless length $type;
+  my $type = lc ref $ref;
+  croak( "Not a ref: $ref" ) unless $type;
   my $method = "mm_make_$type";
   my $tie_class = 'IPC::MMA::' . ucfirst $type;
   my $ipc_var = $IPC::MMA::{ $method }->( $$ipc_ref );
@@ -44,9 +45,12 @@ sub re_open_log :Export( :scripts ) {
   my $log_file = shift;
   close STDERR if defined fileno STDERR;
   close STDOUT if defined fileno STDOUT;
-  open( STDERR, ">>", $log_file ) or die "Opening log $log_file: $!";
-  open( STDOUT, ">>", $log_file ) or die "Opening log $log_file: $!";
-  open STDIN, "<", '/dev/null'   or die "Can't read /dev/null: $!";
+  croak( "Opening log $log_file: $!" )
+    unless open( STDERR, ">>", $log_file );
+  croak( "Opening log $log_file: $!" )
+    unless open( STDOUT, ">>", $log_file );
+  croak( "Can't read /dev/null: $!" )
+    unless open( STDIN, "<", '/dev/null' );
 }
 
 sub print_help_exit :Export( :scripts ) {

@@ -21,16 +21,19 @@ use FCGI::Spawn::BinUtils ':testutils';
 
 use Test::More;
 use Carp;
+use Tie::IxHash;
 
 const( my $timeout => defined( $ENV{ TIMEOUT } ) ? $ENV{ TIMEOUT } : 30 );
 const( my $etc_test => 'etc-test', );
-const( my $general_preset => { 'conf' => '', 'cmd_args' => [ qw/-t 0/ ], }, );
+tie( my %general_preset => 'Tie::IxHash', );
+const( %general_preset
+  => ( 'conf' => '', 'cmd_args' => [ qw/-pl -t 0/ ], ), );
 const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], }, 
-    map( { $_ => $general_preset, }
-      qw/general un_clean_main stats x_stats log_rotate max_requests fcgi /,
+    map( { $_ => \%general_preset, }
+      qw/general un_clean_main stats x_stats log_rotate max_requests
+        fcgi pre_load/,
     ),
-    'pre_load'      => { 'cmd_args' => [ qw/-pl -t 0/ ], },
-    'chroot'        => { 'cgi_dir' => "/$etc_test/cgi" },
+    'chroot'        => { 'cgi_dir' => "/$etc_test/cgi", },
     'time_limit'    => { 'conf' => '', 'cmd_args' => [ qw/-t 10 -stl 10/, ], },
   }, );
 const( my $b_conf => realpath( dirname( __FILE__ )."/../../../$etc_test" ) );
@@ -103,8 +106,6 @@ sub BUILD{
     return $self;
 };
 
-sub retr_general_preset  :Export( :DEFAULT ){ return $general_preset; }
-
 sub init_conf{
   my( $self, $value, $set, $attr, ) = @_;
   my $set_val = $b_conf;
@@ -163,7 +164,7 @@ sub kill_proc_dead :Export( :DEFAULT ){
   unless( $rv < 0 ){
     foreach my $i ( 1..$times ){
       $rv = waitpid $pid => WNOHANG;
-      sleep $i;
+      sleep 1;
       diag( "TERM wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" ) if $debug;
       if( ( ( $rv == -1 ) and ( kill( 0 => $pid ) == 0 )
           ) or ( $rv > 0 )
@@ -175,7 +176,7 @@ sub kill_proc_dead :Export( :DEFAULT ){
     unless( $rv ){ 
       foreach my $i ( 1..$times ){
         kill 'KILL' => $pid unless $rv;
-        sleep $i;
+        sleep 1;
         $rv = waitpid $pid => 0;
         diag( "KILL wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" ) if $debug;
         if( ( ( $rv == -1 ) and ( kill( 0 => $pid ) == 0 )
@@ -205,7 +206,7 @@ sub kill_procsock{
       last;
     } else {
       diag( "$i\n" ) if $debug;
-      sleep $i;
+      sleep 1;
     }
   }
   return $rv;
@@ -267,7 +268,7 @@ sub spawn_fcgi{
   my $cmd_args = $self -> get_cmd_args;
   push @args, @$cmd_args if @$cmd_args > 0;
   @cmd = ( @cmd, @args, );
-  if( $debug ){ diag( join( ' ', @cmd ) . "\n"; }
+  if( $debug ){ diag( join( ' ', @cmd ) . "\n" ); }
   return sub{ exec @cmd };
 }
 
@@ -295,7 +296,7 @@ sub read_pidfile{
         $self -> inspect_log;
       }
       croak( "Logger pid $ppid died" ) unless $wp;
-      sleep $i;
+      sleep 1;
     }
   }
   return $rv;
@@ -333,7 +334,7 @@ sub sock_client{
       ){
       last;
     } else {
-      sleep $i;
+      sleep 1;
     }
   }
   croak $! unless defined( $sock ) or not $sock;
