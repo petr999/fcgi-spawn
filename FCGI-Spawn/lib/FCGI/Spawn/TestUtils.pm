@@ -165,9 +165,8 @@ sub kill_proc_dead :Export( :DEFAULT ){
       $rv = waitpid $pid => WNOHANG;
       sleep 1;
       diag( "TERM wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" ) if $debug;
-      if( ( ( $rv == -1 ) and ( kill( 0 => $pid ) == 0 )
-          ) or ( $rv > 0 )
-        ){ $rv = 1; last;
+      if( is_process_dead( $pid ) ){
+        $rv = 1; last;
       } else {
         $rv = 0;
       }
@@ -177,13 +176,11 @@ sub kill_proc_dead :Export( :DEFAULT ){
         kill 'KILL' => $pid unless $rv;
         sleep 1;
         $rv = waitpid $pid => 0;
-        diag( "KILL wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" ) if $debug;
-        if( ( ( $rv == -1 ) and ( kill( 0 => $pid ) == 0 )
-            ) or ( $rv > 0 )
-          ){ $rv = 1; last;
-        } else {
-          $rv = 0;
+        if( $debug ){
+          diag( "KILL wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" );
         }
+        if( is_process_dead( $pid ) ){ $rv = 1; last; }
+        else { $rv = 0; }
       }
     }
   } else {

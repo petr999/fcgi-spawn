@@ -8,7 +8,7 @@ use Const::Fast;
 use Try::Tiny;
 
 use FCGI::Spawn::TestUtils;
-use FCGI::Spawn::BinUtils qw/:testmodules/;
+use FCGI::Spawn::BinUtils qw/:testutils/;
 
 extends( 'FCGI::Spawn::Tests::Cgi', );
 

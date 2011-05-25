@@ -85,7 +85,7 @@ sub is_sock_tcp :Export( :modules :testutils ){
   wantarray ? ( $1 => $2, ) : $rv;
 }
 
-sub is_process_dead :Export( :scripts :testmodules ) {
+sub is_process_dead :Export( :scripts :testutils ) {
   my $pid = shift;
   waitpid $pid => WNOHANG;
   my $rv = ( -1 == waitpid $pid => WNOHANG,  )
