@@ -20,19 +20,17 @@ sub check{
   my $timeout = $self -> get_timeout;
   share_var( \$shared => \$ipc, ) ;
   $shared = 321;
-  if( $UID == 0 ){
-    my $pid = fork;
-    if( defined $pid ){
-      if( $pid ){
-        sleep $timeout;
-        is( $shared => 123, 'Share variable between forks' );
-      } else {
-        $shared = 123 if $shared == 321;
-        exit;
-      }
+  my $pid = fork;
+  if( defined $pid ){
+    if( $pid ){
+      sleep $timeout;
+      is( $shared => 123, 'Share variable between forks' );
     } else {
-      die "Cannot fork: $@ $!";
+      $shared = 123 if $shared == 321;
+      exit;
     }
+  } else {
+    die "Cannot fork: $@ $!";
   }
 }
 
