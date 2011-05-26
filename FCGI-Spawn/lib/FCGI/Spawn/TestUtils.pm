@@ -160,27 +160,22 @@ sub kill_proc_dead :Export( :DEFAULT ){
   my $times = ( @_ > 0 ) ? shift : $timeout; # for kill-proc-dead.t only
   my $rv = kill 'TERM' => $pid;
   diag( "TERM wait RV: $rv\n" ) if $debug;
-  unless( $rv < 0 ){
+  unless( is_process_dead( $pid ) ){
     foreach my $i ( 1..$times ){
       $rv = waitpid $pid => WNOHANG;
       sleep 1;
       diag( "TERM wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" ) if $debug;
-      if( is_process_dead( $pid ) ){
-        $rv = 1; last;
-      } else {
-        $rv = 0;
-      }
+      $rv = is_process_dead( $pid );
+      if( $debug ){ diag( "Dying termed pid $pid: $rv" ); }
+      last if $rv;
     }
     unless( $rv ){ 
+      kill( 'KILL' => $pid, );
       foreach my $i ( 1..$times ){
-        kill 'KILL' => $pid unless $rv;
         sleep 1;
-        $rv = waitpid $pid => 0;
-        if( $debug ){
-          diag( "KILL wait RV: $rv "."kill0: ".kill( 0 => $pid )."\n" );
-        }
-        if( is_process_dead( $pid ) ){ $rv = 1; last; }
-        else { $rv = 0; }
+        $rv = is_process_dead( $pid );
+        if( $debug ){ diag( "Dying killed pid $pid: $rv" ); }
+        last if $rv;
       }
     }
   } else {
@@ -194,15 +189,16 @@ sub kill_procsock{
   my $self = shift;
   my $pid = $self -> get_pid or croak "No pid";
   my $timeout = $self -> get_timeout;
-  kill_proc_dead( $pid => $timeout, );
-  my $rv = 0;
-  foreach my $i ( 1..$timeout ){
-    if( $self -> sock_try_serv ){
-      $rv = 1;
-      last;
-    } else {
-      diag( "$i\n" ) if $debug;
-      sleep 1;
+  my $rv = kill_proc_dead( $pid => $timeout, );
+  if( $rv ){
+    foreach my $i ( 1..$timeout ){
+      if( $self -> sock_try_serv ){
+        $rv = 1;
+        last;
+      } else {
+        diag( "$i\n" ) if $debug;
+        sleep 1;
+      }
     }
   }
   return $rv;
@@ -210,26 +206,32 @@ sub kill_procsock{
 
 sub sock_try_serv{
   my $self = shift;
-  my $sock_name = $self -> get_sock_name;
-  my $rv = 0;
-  my( $addr, $port ) = $self -> addr_port;
-  if( defined $addr ){
-    $addr = gethostbyname( $addr ) unless $addr =~ m/^(\d{1,3}\.){3}\d{1,3}$/;
-    my $struct_addr = sockaddr_in( $port, inet_aton( $addr ) ) or croak $!;
-    socket(my $h, PF_INET, SOCK_STREAM, getprotobyname('tcp')) or croak $!;
-    setsockopt($h, SOL_SOCKET, SO_REUSEADDR, 1) or croak $!;
-    if( $rv = bind( $h, $struct_addr ) ){
-        close( $h );
+  my $sock_name = shift || $self -> get_sock_name;
+  my $rv;
+  try{
+    my( $addr, $port ) = $self -> addr_port( $sock_name );
+    if( defined $addr ){
+      $addr = gethostbyname( $addr ) unless $addr =~ m/^(\d{1,3}\.){3}\d{1,3}$/;
+      croak $!
+        unless my $struct_addr = sockaddr_in( $port, inet_aton( $addr ) );
+      croak $!
+        unless socket( my $h, PF_INET, SOCK_STREAM, getprotobyname('tcp') );
+      croak $!  unless setsockopt( $h, SOL_SOCKET, SO_REUSEADDR, 1, );
+      if( $rv = bind( $h, $struct_addr ) ){ close( $h ); }
+    } else {
+      croak $@ unless IO::Socket::UNIX->new(
+        'PeerAddr' => $sock_name, 'Type' => SOCK_DGRAM, );
+      $rv = 1;
     }
-  } else {
-    $rv = 1;
-  }
+  } catch {
+    $rv = 0;
+  };
   return $rv;
 }
 
 sub addr_port{
   my $self = shift;
-  my $sock_name = $self -> get_sock_name;
+  my $sock_name = shift || $self -> get_sock_name;
   my @rv = &is_sock_tcp( $sock_name, );
   my( $addr => $port, ) = @rv;
   unless( defined( $addr ) and length( $addr )

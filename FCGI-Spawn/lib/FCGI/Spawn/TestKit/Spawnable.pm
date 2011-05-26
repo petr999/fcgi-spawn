@@ -30,7 +30,7 @@ sub spawn{
   my $rv = 0;
   ok( my $ppid = get_fork_pid( $util -> spawn_fcgi )
     => "Spawner initialisation named '$name'" );
-  if( ok( ( my $pid = $util -> read_pidfile( $ppid ) ) => 'FCGI Spawned', ) ){
+  if( ok( ( my $pid = $util -> read_pidfile( $ppid ) ) => "FCGI Spawned: pid $ppid", ) ){
     $util -> set_pid( $pid );
     $rv = 1;
   }
@@ -62,6 +62,13 @@ sub unspawn_if_pid{
       }
     }
   }
+}
+
+sub stop_serv{
+  my $self = shift;
+  my $util = $self -> get_util;
+  my $pid = $util -> get_pid;
+  $util -> kill_procsock;
 }
 
 1;

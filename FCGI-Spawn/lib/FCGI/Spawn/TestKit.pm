@@ -64,12 +64,9 @@ sub perform{
 
 sub try_use_class{
   my $class_name = shift;
-  unless( defined $INC{ join( '/',
-        split /::/, $class_name
-      ).'.pm' } 
-    ){ eval( "use $class_name;" );
-    croak $@ if $@;
-  }
+  my $inc_key = join( '/', split /::/, $class_name).'.pm';
+  unless( grep{ defined $INC{ join '/', $_ => $inc_key } } @INC
+    ){ eval( "use $class_name;" ); croak $@ if $@; }
 }
 
 sub testify{

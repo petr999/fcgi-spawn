@@ -26,11 +26,4 @@ sub test_obj{
   my $obj = $self -> SUPER::test_obj( $class => ( 'util' => $util, ), );
 }
 
-sub stop_serv{
-  my $self = shift;
-  my $util = $self -> get_util;
-  my $pid = $util -> get_pid;
-  $util -> kill_procsock;
-}
-
 1;

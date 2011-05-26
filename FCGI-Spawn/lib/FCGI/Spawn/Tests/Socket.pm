@@ -4,7 +4,9 @@ use Moose;
 use MooseX::FollowPBP;
 
 use Test::More;
+
 use FCGI::Spawn::TestUtils;
+use FCGI::Spawn::BinUtils ':testutils';
 
 extends( 'FCGI::Spawn::Tests', );
 
@@ -21,10 +23,14 @@ sub check{
     sub{ use_ok( 'FCGI', ); },
     sub{ use_ok( 'FCGI::Spawn', ); },
     sub{ ok( $spawn = FCGI::Spawn->new() => 'Spawner initialisation', ); },
-    sub{ ok( $spawn_pid = get_fork_pid( sub{  $spawn->spawn; } )
+    sub{ ok( $spawn_pid = get_fork_pid( sub{  $spawn->spawn; }, )
       => 'Spawning'); },
-    sub{ sleep $timeout;
-         ok( kill_proc_dead( $spawn_pid ) => 'finding if spawn ended', );
+    sub{ sleep $timeout; },
+    sub{ ok( not( is_process_dead( $spawn_pid, ), )
+            => 'Spawn is listening', );
+       ok( not( FCGI::Spawn::TestUtils -> sock_try_serv(
+          $$spawn{'sock_name'} ) ) => 'socket was binded' );
+       ok( kill_proc_dead( $spawn_pid, ) => 'finding if spawn ended', );
     },
   );
   my $rv = 1;

@@ -243,7 +243,7 @@ defined( my $pid = fork ) or croak "Forking logger: $!";
 if( $pid ){
   if( defined $pid_file ){
     open( my $pid_fh, ">", $pid_file ) or croak "Writing $pid_file: $!";
-    print $pid_fh "$pid\n"; close $pid_fh;
+    print $pid_fh "$pid"; close $pid_fh;
   }
   if( $no_detach ){
     map{ my $signal = $_; $SIG{ $signal } = subname( 'signal_handler' => sub{
