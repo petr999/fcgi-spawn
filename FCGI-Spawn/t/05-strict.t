@@ -1,8 +1,10 @@
 #!/usr/bin/perl -w
 
 use strict;
-use Test::Strict;
+use warnings;
 
-use lib 'lib';
+use lib 't/lib';
+
+use Test::Strict;
 
 all_perl_files_ok();

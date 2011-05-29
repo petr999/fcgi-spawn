@@ -1,10 +1,12 @@
 #!/usr/bin/perl -w
 
 use strict;
+use warnings;
+
+use lib 't/lib';
+
 use Test::More;
 use Test::More::UTF8;
-
-use lib 'lib';
 
 use_ok 'FCGI::Spawn';
 use_ok 'FCGI::Spawn::ConfigFile';

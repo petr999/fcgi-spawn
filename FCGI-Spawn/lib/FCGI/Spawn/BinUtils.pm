@@ -14,11 +14,13 @@ sub _init_ipc {
   my( $ipc_ref => $mm_scratch  ) = @_;
   unless( defined $$ipc_ref ){
     croak( "IPC::MMA: $@ $!" ) unless eval{ require IPC::MMA; 1; };
-    my $rv = $$ipc_ref = IPC::MMA::mm_create( map{ $mm_scratch->{ $_ } } mm_size => 'mm_file', );
+    my $rv = $$ipc_ref = IPC::MMA::mm_create( map{ $mm_scratch->{ $_ } }
+      'mm_size' => 'mm_file', );
     croak( "IPC::MMA init: $@ $!" ) unless $rv;
     my $uid = $mm_scratch->{ 'uid' };
     unless( $UID ){
-      $rv = not IPC::MMA::mm_permission( $$ipc_ref => '0600', $uid => -1,);
+      $rv = not IPC::MMA::mm_permission( $$ipc_ref => '0600', $uid => -1, );
+      # This croak is needed for shm test in chroot testkit too
       croak( "SHM unpermitted for $uid: $!" ) unless $rv; # Return value invert
     }
   }
@@ -85,12 +87,24 @@ sub is_sock_tcp :Export( :modules :testutils ){
   wantarray ? ( $1 => $2, ) : $rv;
 }
 
-sub is_process_dead :Export( :scripts :testutils ) {
+sub is_process_dead :Export( :scripts :testutils ){
   my $pid = shift;
   waitpid $pid => WNOHANG;
   my $rv = ( -1 == waitpid $pid => WNOHANG,  )
      && ( 0 == kill 0 => $pid );
   return $rv;
+}
+
+sub addr_port :Export( :testutils ){
+  my $sock_name = shift;
+  my @rv = is_sock_tcp( $sock_name, );
+  my( $addr => $port, ) = @rv;
+  unless( defined( $addr ) and length( $addr )
+      and defined( $port ) and length( $port )
+    ){
+      @rv = undef;
+  }
+  return @rv;
 }
 
 1;

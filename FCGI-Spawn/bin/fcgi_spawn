@@ -54,6 +54,8 @@ Those are optional:
                     /tmp/fcgi_spawn_scoreboard.lck );
   -mms              size of the shared memory segment for the -t feature 
                     ( defaults to 65535 bytes );
+  -cm               validate config file by means of L<Moose>. Use this if your
+                    scripts use Moose or if you can spend your memory for this.
   -pl               Evaluate the:
 
 =head2 C<Preload> Scripts from the configuration directory
@@ -173,12 +175,12 @@ use POSIX qw/setuid setgid setsid :sys_wait_h WNOHANG/;
 
 use Sub::Name;
 use Carp;
-use FCGI::Spawn::ConfigFile;
 use FCGI::Spawn::BinUtils ':scripts';
 
 our $OURS = {};
 my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
-my( $preload, $no_detach, $time_limit, $soft_tl, ) = ( 0, 0, 60, 1, );
+my( $preload, $no_detach, $time_limit, $soft_tl, $conf_moose )
+  = ( 0, 0, 60, 1, 0, );
 my( $mm_file, $mm_size ) = ( '/tmp/fcgi_spawn_scoreboard.lck', 65535 );
 my $argv_lookup = {
   'c' => \$config_path, 'p' => \$pid_file, 'l' => \$log_file, 'u' => \$user,
@@ -189,6 +191,7 @@ my $argv_lookup = {
   'e' => [ \$redefine_exit => 1, ], 'pl' => [ \$preload => 1, ],
   'nd' => [ \$no_detach => 1, ],
   'h' => \&print_help_exit,
+  'mmf' => \$mm_file, 'mms' => \$mm_size, 'cm' => [ \$conf_moose => 1, ],
 };
 $argv_lookup->{ '?' } = $argv_lookup->{ h };
 $argv_lookup = { map{ "-".$_ => $argv_lookup->{ $_ } } keys %$argv_lookup };
@@ -262,7 +265,15 @@ unless( $no_detach ){
   $SIG{ USR1 } = subname( 're_open_log_file' => sub{ re_open_log( $log_file ); }, );
 }
 
-my $conf = FCGI::Spawn::ConfigFile->new();
+my $conf_class = "FCGI::Spawn::ConfigFile";
+if( $conf_moose ){ $conf_class .= "::Moose";
+  croak "$@ $!" unless eval { require FCGI::Spawn::ConfigFile::Moose;
+    FCGI::Spawn::ConfigFile::Moose->import; 1; }
+} else {
+  croak "$@ $!" unless eval { require FCGI::Spawn::ConfigFile;
+    FCGI::Spawn::ConfigFile->import; 1; }
+}
+my $conf = $conf_class -> new();
 my $gid = getgrnam( $group ); croak "Get ( probably non-existent ) group $group: $!" if $gid == 0;
 my $uid = getpwnam( $user );  croak "Get ( probably non-existent ) user $user: $!" if $uid == 0;
 
@@ -321,6 +332,15 @@ if( $spawn_pid ){
   }
   waitpid $spawn_pid => 0; # while spawn_pid is running
   unlink $pid_file if defined $pid_file; # fork is reaped already
+  if( $time_limit and defined $mm_file ){ # fork is reaped already
+    my $rv = ( -f $mm_file ) ? unlink $mm_file : 1;
+    my $sem_file = "$mm_file.sem";
+    my $sem_rv = ( -f $sem_file ) ? unlink $sem_file : 1;
+    my $msg =  '';
+    $msg .= "Can not delete $mm_file" unless $rv;
+    $msg .=  " Can not delete $sem_file" unless $sem_rv;
+    croak( $msg ) unless( $rv and $sem_rv );
+  }
   CORE::exit;
 }
 

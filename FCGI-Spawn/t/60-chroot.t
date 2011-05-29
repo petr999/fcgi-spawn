@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use lib 'lib';
+use lib 't/lib';
 
 use FCGI::Spawn::TestKit;
 
