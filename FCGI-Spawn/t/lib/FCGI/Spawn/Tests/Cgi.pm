@@ -88,7 +88,9 @@ sub make_sock{
 
 sub parse{
   my( $self, ( $out => $err ), ) = @_;
-  croak( "Parse error: $$err", ) if defined( $$err ) and length( $$err );
+  croak( "Parse error: $$err", ) if defined( $$err ) and length( $$err )
+    # Looks like from previous spawn; tell me if you know how to prevent this
+    and $$err !~ /^FastCGI: server \(pid \d+\): safe exit after SIGTERM$/;
   my $sn = $self -> get_env -> { 'SCRIPT_FILENAME' };
   croak( "No HTTP header in $sn stdout: $$out" )
     unless $$out =~ s/^([^\r\n]+\r?\n\r?)+\r?\n\r?(.*)$/$2/ms;

@@ -11,9 +11,9 @@ use Sub::Name;
 extends( 'FCGI::Spawn::Tests::Persistent', );
 
 has( '+state' => ( qw/isa ArrayRef[Str]/, ) );
-has( qw/cmp_vals    is ro isa ArrayRef[Str] required 1 builder init_cmp_vals/, );
-has( qw/temp_files    is rw isa ArrayRef[Str]    default/
-  => subname( 'init_temp_files' => sub{ []; }, ), );
+has( qw/cmp_vals    is ro isa ArrayRef[Str] required 1 builder
+  init_cmp_vals/, );
+has( qw/temp_files    is rw isa ArrayRef[Str] builder init_temp_files/, );
 
 augment( 'enparse' => \&change_cgi, );
 override( 'check' => \&check_and_clean_temp_files );
@@ -24,6 +24,8 @@ sub BUILD{
   my $self = shift;
   $self -> orig_cgi;
 }
+
+sub init_temp_files{ return []; }
 
 sub check_and_clean_temp_files {
   my $self = shift;

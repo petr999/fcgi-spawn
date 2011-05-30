@@ -31,7 +31,7 @@ const( my $mmf_basename
 tie( my %general_preset => 'Tie::IxHash', );
 const( %general_preset
   => ( 'conf' => '', 'cmd_args' => [ qw/-pl -t 10 -stl 10/ ], ), );
-const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], }, 
+const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/, ], },
     map( { $_ => \%general_preset, } 
       qw/general un_clean_main stats x_stats
         log_rotate max_requests fcgi pre_load time_limit save_env/,
@@ -40,16 +40,17 @@ const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/ ], },
       'cmd_args' => [ '-mmf' => "$etc_test/$mmf_basename", ],
     },
   }, );
-const( my $b_conf => realpath( dirname( __FILE__ )."/../../../../$etc_test" ) );
+const( my $b_conf
+  => realpath( dirname( __FILE__ )."/../../../../$etc_test" ) );
 
 my %bnames =  ( 'etc_test' => $etc_test,
-                'pid_fname' => 'fcgi_spawn.pid', 'log_fname' => 'fcgi_spawn.log',
-                #'sock_name' => "spawner.sock", # TODO: local socket
-                'sock_name' => "127.0.0.1:8888",
-                'cmd_args_first' => [ "-Iblib/lib" => "bin/fcgi_spawn",
-                  "-mmf" => "$etc_test/$mmf_basename", '-cm', ],
-                map{ $_ => 'nobody' } qw/user group/,
-              );
+  'pid_fname' => 'fcgi_spawn.pid', 'log_fname' => 'fcgi_spawn.log',
+  #'sock_name' => "spawner.sock", # TODO: local socket
+  'sock_name' => "127.0.0.1:8888",
+  'cmd_args_first' => [ "-Iblib/lib" => "bin/fcgi_spawn",
+    "-mmf" => "$etc_test/$mmf_basename", '-cm', ],
+  map{ $_ => 'nobody' } qw/user group/,
+);
 foreach( qw/pid log/ ){
   my $key = $_."_fname";
   $bnames{ $key } = join '/', $b_conf => $bnames{ $key };

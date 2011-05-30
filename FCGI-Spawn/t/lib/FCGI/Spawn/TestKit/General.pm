@@ -27,9 +27,7 @@ sub init_tests_list{
   @kits = keys %seen_tests;
   my @tests = ();
   foreach my $kit( @kits ){
-    my $class = FCGI::Spawn::TestKit -> concat_class_name( $kit );
-    FCGI::Spawn::TestKit::try_use_class( $class );
-    my $kit_obj = $class -> new;
+    my $kit_obj = FCGI::Spawn::TestKit::retr_obj_by_name( $kit );
     my $tests_list = $kit_obj -> get_tests;
     push( @tests => @$tests_list, );
   }

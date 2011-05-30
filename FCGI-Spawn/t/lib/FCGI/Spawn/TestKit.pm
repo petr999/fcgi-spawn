@@ -18,6 +18,41 @@ has( qw/failure    is rw   isa Str    default/ => '', );
 
 __PACKAGE__->meta->make_immutable;
 
+const( my $kits => { 
+  'cgi_fast' => { qw/extends spawnable/, 'init_hash' => {
+    qw/self_skip 1 push_tests/ => [
+      qw/basic_cf serialize serialize_cf serialize_post_cf save_env/,
+  ], }, },
+  'cgi_fast_mod_perl' => { qw/extends spawnable/,
+    'init_hash' => { qw/self_skip 1 push_tests/ => [
+      qw/basic serialize serialize_cf/,
+  ], }, },
+  'mod_perl' => { qw/extends spawnable/,
+    'init_hash' => { qw/self_skip 1 push_tests/ => [
+      qw/basic serialize serialize_post serialize_mp2 serialize_post_mp2/,
+  ], }, },
+  'clean_inc_sub_ns' => { qw/extends spawnable/, 'init_hash' => {
+    'push_tests' => [ qw/stats_cisns/, ], }, },
+  map( { $_ => { qw/extends spawnable/, }; }
+    qw/clean_main log_rotate max_requests pre_load save_env un_clean_main
+        call_out un_save_env/,
+  ),
+  'fcgi' => { qw/extends spawnable/, 'init_hash' => { qw/self_skip 1
+      push_tests/ => [ qw/basic serialize serialize_post/, ], }, },
+  'initial' => { 'init_hash' => { 'tests'
+    =>  [ qw/config_file shm test_utils kill_proc_dead socket bin/, ], }, },
+  'stats' => { qw/extends spawnable/, 'init_hash' => { 'push_tests' => [
+    qw/stats_mod/,
+  ], }, },
+  'x_stats' => { qw/extends spawnable/, 'init_hash' => { 'push_tests' => [
+    qw/x_stats_dependence x_stats_cached/, 
+  ], }, },
+  'time_limit' => { qw/extends spawnable/, 'init_hash' => { 'push_tests' => [
+    qw/time_limit_term_ignore time_limit_kill time_limit_parallel
+      time_limit_kill_parallel/,
+  ], }, },
+} );
+
 sub init_name{
   my $self = shift;
   croak unless my $class = ref( $self );
@@ -32,8 +67,6 @@ sub init_tests_list{
 
 sub make_class_name{
   my $name = shift;
-  $name = basename( $name );
-  my $rv = $name =~ s/^\d+-(.+)\.t$/$1/; # for perform( __FILE__ );
   my $class_name = concat_class_name(  __PACKAGE__, $name );
 }
 
@@ -41,16 +74,17 @@ sub concat_class_name{
   my( $base, $name ) = @_;
   my $base_ref = ref( $base );
   if( defined( $base_ref ) and length( $base_ref ) ){ $base = $base_ref; }
-  my $class_name = join '', map{ ucfirst $_ } split /_/, $name;
-  $class_name = $base."::$class_name";
+  my $class_name = ( defined( $name ) and length( $name ) )
+    ? join '', map{ ucfirst $_ } split /_/, $name : '';
+  $class_name = length( $class_name ) ? $base."::$class_name" : $base;
 }
 
 sub perform{
-  foreach my $name ( @_ ){
-    my $class_name = make_class_name( $name );
-    try_use_class( $class_name );
-    my $bunch = $class_name -> new;
-    $bunch -> testify;
+  foreach my $name ( @{ [ @_ ] } ){
+    $name = basename( $name );
+    $name =~ s/^\d+-(.+)\.t$/$1/; # for perform( __FILE__ );
+    my $kit = retr_obj_by_name( $name );
+    $kit -> testify;
   }
   done_testing();
 }
@@ -69,7 +103,7 @@ sub testify{
     diag( "Test: $test" );
     my( $rv => $fatal, ) = $self -> try_test( $test );
     last if $fatal;
-    sleep 10;
+    # sleep 10;
   }
   $self -> inner();
 }
@@ -80,7 +114,6 @@ sub try_test{
   my( $rv => $fatal, ) = ( 0 => 0, );
   try{
     ( $rv => $fatal, ) = $self -> try_out( $test );
-    1;
   } catch {
     $self -> set_failure( "$_" );
     my $failure = $self -> get_failure;
@@ -119,4 +152,24 @@ sub test_obj{
   try_use_class( $class);
   my $obj = $class -> new( @_ );
 }
+
+sub retr_obj_by_name{
+  my $name = shift;
+  my( $class =>  $kit_obj, @args, );
+  if( defined $$kits{ $name } ){
+    my $kit = $$kits{ $name };
+    my $extends = defined( $$kit{ 'extends' } ) ? $$kit{ 'extends' } : '';
+    $class = make_class_name( $extends );
+    @args = ( { 'name' => $name, }, );
+    if( defined $$kit{ 'init_hash' } ){
+      $args[ 0 ] = { %{ $args[ 0 ] }, %{ $$kit{ 'init_hash' }, }, };
+    }
+  } else {
+    $class = make_class_name( $name );
+  }
+  if( $class ne __PACKAGE__ ){ try_use_class( $class ); }
+  $kit_obj = $class -> new( @args );
+  return $kit_obj;
+}
+
 1;
