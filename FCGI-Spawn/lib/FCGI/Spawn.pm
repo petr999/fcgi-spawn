@@ -5,9 +5,9 @@ use warnings;
 
 use vars qw($VERSION);
 BEGIN {
-  $VERSION = '0.16.1';
+  our $VERSION = '0.16.1';
   no warnings 'once'; # keep from '$Default only once'
-  $FCGI::Spawn::Default = 'FCGI::Spawn';
+  our $Default = 'FCGI::Spawn';
 }
 
 =pod
@@ -410,89 +410,91 @@ use File::Basename qw/fileparse/;
 use FCGI::ProcManager;
 use FCGI::Spawn::BinUtils ':modules';
 
-use base qw/Exporter/;
+use base qw/Exporter/; our @EXPORT_OK = qw/statnames_to_policy/;
 
-our @EXPORT_OK = qw/statnames_to_policy/;
+my $fcgi = undef; # fastcgi object
+my $use_cgi_fast = 0; # use CGI::Fast or not
+my %xinc; # same as %INC but for templates ( x_stats feature )
 
-our $fcgi = undef; #TODO: my
-my $use_cgi_fast = 0;
-my %xinc;
+my $maxlength=100000; # default maximum length of a perl file to call out
 
-my $maxlength=100000;
+# convinience for stats/x_stats policies for comparison of former and current
+const( my $policies => { qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6
+  size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/ }, );
 
-const my $policies => { qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6
-  size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/ };
-
-
+# defaults for spawn object
 const my $defaults => {
-  n_processes => 5,
-  max_requests =>  20,
-  clean_inc_hash  =>   0,
-  clean_main_space  => 0,
-  clean_inc_subnamespace  => [],
-  callout  =>  sub{
-    do shift;
-  },
-  stats  => 1,
-  stats_policy  => statnames_to_policy( 'mtime' ),
-  x_stats  => 1,
-  x_stats_policy  => statnames_to_policy( 'mtime' ),
-  state  => {},
-  seed_rand => 1,
-  save_env => 1,
-  procname => 1,
-  is_prepared => 0,
-  acceptor => 'fcgi',
-  use_cgi => 0,
-  sock_name => '/tmp/spawner.sock',
+  qw/n_processes 5 max_requests 20 clean_inc_hash 0
+  clean_main_space 0 clean_inc_subnamespace/ => [],
+  'callout' => sub{ my $fcgi = pop; do shift; },
+  qw/stats 1 stats_policy/ => statnames_to_policy( 'mtime', ),
+  qw/x_stats 1 x_stats_policy/ => statnames_to_policy( 'mtime', ),
+  'state' => {}, qw/seed_rand 1 save_env 1 procname 1 is_prepared 0
+  acceptor fcgi use_cgi 0 sock_name/ => '/tmp/spawner.sock',
   sock_queue => 100, # default from CGI::Fast
-  keep_socket => 0,
-  stats_reload_method => [ qw/reload_symtable_by_module/ ],
-  reload_failover => 0,
-  mod_perl => 0,
-  use_php => 0,
-  php_fext => 'php',
+  keep_socket => 0, stats_reload_method => [ qw/reload_symtable_by_module/ ],
+  reload_failover => 0, mod_perl => 0, use_php => 0, php_fext => 'php',
   php_ctype => 'text/html',
 };
 
+# Static function
+# Turns the stat() file attributes from names to numbers
+# Takes: optional name(s) of policies to take into account when decide
+# if file changed or not
+# Returns: array reference filled with numbers corresponding to those names
 sub statnames_to_policy {
-  my $rv = grep(  { $_ eq 'all' } @_ )
-  ?  [ 0..7, 9..12 ]
-  : [ map { $policies -> { $_ }; } @_ ];
+  my $rv = grep(  { $_ eq 'all' } @_ ) ?  [ 0..7, 9..12 ]
+    : [ map { $policies -> { $_ }; } @_ ];
   return $rv;
 }
 
+# Static function
+# Unlinks local unix socket
+# Takes: socket file name
+# Throws: on unsuccessful removal or if non-socket exists with the same name
+# Returns: n/a
 sub unlink_socket{
   my $sock_name = shift;
   if( -e $sock_name ){
-    (
-      [ -S $sock_name ]
-      &&
-      unlink $sock_name
-    )  or die "Exists $sock_name: not a socket or unremoveable";
+    die( "Exists $sock_name: not a socket" ) unless ( -S $sock_name );
+    die( "Socket $sock_name: unremoveable" )
+      unless unlink $sock_name;
   }
 }
+
+# Object method
+# Changes local unix socket inode info accoring to sock_chown
+# and sock_chmod attributes
+# Takes: n/a
+# Throws: wrong attribute(s) or chown/chmod error
+# Returns: n/a
 sub sock_change{
   my $self = shift;
   my $sock_name = $self->{ sock_name };
   if( defined $self->{sock_chown} ){
-    chown( @{ $self->{sock_chown} }, $sock_name )
-      or die $!;
+    die( $! ) unless chown( @{ $self->{sock_chown} }, $sock_name );
   }
   if( defined $self->{sock_chmod} ){
-    $self->{ sock_chmod } = oct( $self->{ sock_chmod }  )
-      or die "Not a chmod for socket: ". $self->{ sock_chmod };
-    chmod( $self->{sock_chmod}, $sock_name )
-      or die $!;
+    die( "Not a chmod for socket: ". $self->{ sock_chmod } )
+      unless $self->{ sock_chmod } = oct( $self->{ sock_chmod } );
+    die "Chmod " . $self->{sock_chmod} . "$sock_name: $!"
+      unless chmod( $self->{sock_chmod}, $sock_name );
   }
 }
+
+# Static method
+# Loads modules required for mod_perl emulation
+# and sets global variables according to constructor properties
+# Takes: constructor properties
+# Throws: on error loading module
+# Returns: n/a
 sub load_optional_module_modperl {
   my( $class, $properties ) = @_;
   if( defined $properties->{ mod_perl } and $properties->{ mod_perl } ){
     eval{
       require CGI; # CGI.pm init may happen here
       $CGI::MOD_PERL = $properties->{ mod_perl };
-      require FCGI::Spawn::ModPerl;
+      require Apache::Fake;
       $mod_perl::VERSION = $properties->{ mod_perl };
       foreach( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, ){
         $$_ = $properties->{mod_perl};
@@ -501,6 +503,9 @@ sub load_optional_module_modperl {
     1; } or die "$@ $!";
   }
 }
+
+# Static method
+# Loads CGI module
 sub load_optional_module_cgi {
   my( $class, $properties ) = @_;
   if( defined $properties->{ use_cgi } and $properties->{ use_cgi } ){
@@ -508,6 +513,7 @@ sub load_optional_module_cgi {
     1; } or die $!;
   }
 }
+
 sub load_optional_module_php {
   my( $class, $properties ) = @_;
   if( defined $properties->{ use_php } and $properties->{ use_php } ){
@@ -653,7 +659,7 @@ sub _callout {
   if( $self->{ use_php } and $self->{ php_fext }->( @_ ) ){
     $self->{ php_callout }->( @_ );
   } else {
-    $self->{callout}->( @_ );
+    $$self{callout}( @_ );
   }
   $0 = $procname if $self->{ procname };
   %ENV = %save_env if $self->{ save_env };
@@ -663,9 +669,9 @@ sub callout {
   my $self = shift;
     if( $self->{ mod_perl } ){
       my $handlers = Apache->request->{ HANDLERS }; # for cleanups assigned on preload
-      FCGI::Spawn::ModPerl->new;
+      Apache::Fake->new;
       Apache->request->{ HANDLERS } = $handlers;
-      $self->{ saved_handlers } = $handlers; #for modperl_reset
+      $self->{ saved_handlers } = $handlers; # for modperl_reset
       foreach( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, ){
         $$_ = $self->{mod_perl};
       }
@@ -964,5 +970,12 @@ sub set_state {
   my( $self, $key, $val ) = @_;
   $self->{ state }->{ $key } = $val;
 }
+
+# Static method
+# Makes fcgi scripts possible to get their fastcgi object
+# without setting spawn's callout attribute to reference with an eval() inside
+# Takes: nothing
+# Returns: $fcgi
+sub fcgi{ return $fcgi; }
 
 1;

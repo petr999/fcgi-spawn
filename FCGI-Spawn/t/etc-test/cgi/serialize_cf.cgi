@@ -8,5 +8,5 @@ use CGI;
 use FCGI::Spawn;
 
 print "Content-type: text/json\n\n"
-  , encode_json( $FCGI::Spawn::fcgi->Vars ),
+  , encode_json( FCGI::Spawn -> fcgi -> Vars ),
 ;

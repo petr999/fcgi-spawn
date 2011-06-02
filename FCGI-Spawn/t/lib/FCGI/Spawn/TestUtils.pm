@@ -353,11 +353,12 @@ sub sock_try_serv :Export( :DEFAULT ){
     my( $addr, $port ) = addr_port( $sock_name );
     if( defined $addr ){
       $addr = gethostbyname( $addr ) unless $addr =~ m/^(\d{1,3}\.){3}\d{1,3}$/;
-      croak $!
+      croak( "sockarrd_in $sock_name: $@ $!" )
         unless my $struct_addr = sockaddr_in( $port, inet_aton( $addr ) );
-      croak $!
+      croak( "socket() for $sock_name: $@ $!" )
         unless socket( my $h, PF_INET, SOCK_STREAM, getprotobyname('tcp') );
-      croak $!  unless setsockopt( $h, SOL_SOCKET, SO_REUSEADDR, 1, );
+      croak( "setsockopt() for $sock_name: $@ $!" )
+        unless setsockopt( $h, SOL_SOCKET, SO_REUSEADDR, 1, );
       $rv = bind( $h, $struct_addr );
       close( $h );
     } else {

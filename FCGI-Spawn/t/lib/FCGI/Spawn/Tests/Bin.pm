@@ -100,8 +100,8 @@ sub start_logged{
     }
     $rv &&= $pid_rv;
     ok( $rv => "Finding if pid file $pid_file was deleted by daemon", );
-    my $log_rv = ( ( -f $log_file ) and ( [ stat $log_file ]->[
-      statnames_to_policy( 'size' )->[ 0 ] ] > 0 ) );
+    my $log_rv = ( ( -f $log_file ) and ( ( stat $log_file )[
+      statnames_to_policy( 'size' ) -> [ 0 ] ] > 0 ) );
     $rv &&= $log_rv;
     ok( $rv => 'Finding if log file was left by daemon', );
   }

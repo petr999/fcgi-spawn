@@ -26,7 +26,7 @@ sub testify_if_root{
       . " test chroot and mm_permission features."
       . " These tests are presumably passed ;-)"
     ;
-    diag( $msg ); ok( 1 => $msg, ); done_testing();
+    diag( $msg ); ok( 1 => $msg, );
   } else {
     return super();
   }
