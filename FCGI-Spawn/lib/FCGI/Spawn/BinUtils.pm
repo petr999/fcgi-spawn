@@ -9,6 +9,11 @@ use POSIX qw/WNOHANG/;
 use English qw/$UID/;
 use Perl6::Export::Attrs;
 use Carp;
+use Const::Fast;
+
+# convinience for stats/x_stats policies for comparison of former and current
+const( my $POLICIES => { qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6
+  size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/ }, );
 
 sub _init_ipc {
   my( $ipc_ref => $mm_scratch  ) = @_;
@@ -105,6 +110,29 @@ sub addr_port :Export( :testutils ){
       @rv = undef;
   }
   return @rv;
+}
+
+=pod
+
+=head2 statnames_to_policy( 'mtime', 'ctime', ... );
+
+Static function.
+Convert the list of file inode attributes' names checked by stat() builtin to the list of numbers for it described in the perldoc -f C<stat> .
+ In the case if the special word 'all' if met on the list, all the attributes are checked besides 'atime' (8).
+Also, you can define the order in which the C<stats> are checked to reload perl modules: if the change is met, no further checks of this list for particular module on particular request are made as a decision to recompile that source is already taken.
+This is the convenient way to define the modules reload policy, the C<'stat_policy'> object property, among with the need in modules' reload itself by the C<'stats'> property checked as boolean only.
+
+=cut
+
+# Static function
+# Turns the stat() file attributes from names to numbers
+# Takes: optional name(s) of policies to take into account when decide
+# if file changed or not
+# Returns: array reference filled with numbers corresponding to those names
+sub statnames_to_policy :Export( :modules :testutils ){
+  my $rv = grep(  { $_ eq 'all' } @_ ) ?  [ 0..7, 9..12 ]
+    : [ map { $POLICIES -> { $_ }; } @_ ];
+  return $rv;
 }
 
 1;

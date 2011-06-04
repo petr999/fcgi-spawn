@@ -203,7 +203,7 @@ Default: 1.
 =item * stats_policy
 
 Array reference that defines what kind of changes on the every module file stat()'s change to track and in what sequence.
-Default: FCGI::Spawn::statnames_to_policy( 'mtime' ) ( statnames_to_policy() function is described below ).
+Default: [ 6 ], corresponding to  C<mtime> attribute ) ( L<statnames_to_policy()|FCGI::Spawn::BinUtils/statnames_to_policy> function is described at L<FCGI::Spawn::BinUtils|FCGI::Spawn::BinUtils> ).
 
 =item * x_stats  and x_stats_policy
 
@@ -293,13 +293,6 @@ This is useful in the case when one template file includes another, and so on.
 For example, the included file should be the '/path/to/header_or_footer_file'  in this case, and the next parameter is [ '/path/to/index_page_template', '/path/to/landing_page_template', ... ] with all the dependent files mentioned.
 Those dependent files should be xinc()'ed  at the end of the every xinc() chain with the code reference.
 
-=head2 statnames_to_policy( 'mtime', 'ctime', ... );
-
-Static function.
-Convert the list of file inode attributes' names checked by stat() builtin to the list of numbers for it described in the perldoc -f C<stat> .
- In the case if the special word 'all' if met on the list, all the attributes are checked besides 'atime' (8).
-Also, you can define the order in which the C<stats> are checked to reload perl modules: if the change is met, no further checks of this list for particular module on particular request are made as a decision to recompile that source is already taken.
-This is the convenient way to define the modules reload policy, the C<'stat_policy'> object property, among with the need in modules' reload itself by the C<'stats'> property checked as boolean only.
 
 =head1 Thanks, Bugs, TODOs, Pros and Contras ( The Etcetera )
 
@@ -410,17 +403,12 @@ use File::Basename qw/fileparse/;
 use FCGI::ProcManager;
 use FCGI::Spawn::BinUtils ':modules';
 
-use base qw/Exporter/; our @EXPORT_OK = qw/statnames_to_policy/;
-
 my $fcgi = undef; # fastcgi object
 my $use_cgi_fast = 0; # use CGI::Fast or not
 my %xinc; # same as %INC but for templates ( x_stats feature )
 
 my $maxlength=100000; # default maximum length of a perl file to call out
 
-# convinience for stats/x_stats policies for comparison of former and current
-const( my $policies => { qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6
-  size 7 atime 8 mtime 9 ctime 10 blksize 11 blocks 12/ }, );
 
 # defaults for spawn object
 const my $defaults => {
@@ -436,17 +424,6 @@ const my $defaults => {
   reload_failover => 0, mod_perl => 0, use_php => 0, php_fext => 'php',
   php_ctype => 'text/html',
 };
-
-# Static function
-# Turns the stat() file attributes from names to numbers
-# Takes: optional name(s) of policies to take into account when decide
-# if file changed or not
-# Returns: array reference filled with numbers corresponding to those names
-sub statnames_to_policy {
-  my $rv = grep(  { $_ eq 'all' } @_ ) ?  [ 0..7, 9..12 ]
-    : [ map { $policies -> { $_ }; } @_ ];
-  return $rv;
-}
 
 # Static function
 # Unlinks local unix socket
@@ -505,67 +482,86 @@ sub load_optional_module_modperl {
 }
 
 # Static method
-# Loads CGI module
+# Loads optional CGI.pm module
+# Takes: construictor properties
+# Throws: on error loading module
+# Returns: n/a
 sub load_optional_module_cgi {
   my( $class, $properties ) = @_;
   if( defined $properties->{ use_cgi } and $properties->{ use_cgi } ){
-    eval{ require CGI;
-    1; } or die $!;
+    die( "$@ $!" ) unless eval{ require CGI; 1; };
   }
 }
 
+# http://bugs.vereshagin.org/show_bug.cgi?id=7
 sub load_optional_module_php {
-  my( $class, $properties ) = @_;
-  if( defined $properties->{ use_php } and $properties->{ use_php } ){
-    eval{ require PHP;
-          PHP::options( stdout => sub {
-                       print shift;
-               },
-          );
-        # PHP::options(
-        #      debug => 1,
-        # );
-    1; } or die $!;
-    if( defined $properties->{ php_fext } and $properties->{ php_fext } ){
-      my $php_fext = $properties->{ php_fext };
-      if( '/' eq substr $php_fext, 0, 1 ){
-        my $regex =~ s:^/|/$::g;
-        $php_fext = sub{ ~/$regex/ };
-      } else {
-        $php_fext =~ s/^([^\.])/.$1/;
-        my $php_fext_copy = $php_fext;
-        my $length_php_fext = length $php_fext;
-        $php_fext = sub{
-          my $fn = shift; my $length_fn = length( $fn );
-          $php_fext_copy eq substr $fn, $length_fn - $length_php_fext, $length_php_fext;
-        };
-      }
-      $properties->{ php_fext } = $php_fext;
-      $properties->{ php_callout } = sub{
-        print "Content-type: ".$properties->{ php_ctype }."\n\n"
-          if defined( $properties->{ php_ctype } ) and length $properties->{ php_ctype };
-        PHP::include( shift );
-      };
-    }
-  }
+#   my( $class, $properties ) = @_;
+#   if( defined $properties->{ use_php } and $properties->{ use_php } ){
+#     eval{ require PHP;
+#           PHP::options( stdout => sub {
+#                        print shift;
+#                },
+#           );
+#         # PHP::options( debug => 1, );
+#     1; } or die $!;
+#     if( defined $properties->{ php_fext } and $properties->{ php_fext } ){
+#       my $php_fext = $properties->{ php_fext };
+#       if( '/' eq substr $php_fext, 0, 1 ){
+#         my $regex =~ s:^/|/$::g;
+#         $php_fext = sub{ ~/$regex/ };
+#       } else {
+#         $php_fext =~ s/^([^\.])/.$1/;
+#         my $php_fext_copy = $php_fext;
+#         my $length_php_fext = length $php_fext;
+#         $php_fext = sub{
+#           my $fn = shift; my $length_fn = length( $fn );
+#           $php_fext_copy eq substr $fn, $length_fn - $length_php_fext, $length_php_fext;
+#         };
+#       }
+#       $properties->{ php_fext } = $php_fext;
+#       $properties->{ php_callout } = sub{
+#         print "Content-type: ".$properties->{ php_ctype }."\n\n"
+#           if defined( $properties->{ php_ctype } ) and length $properties->{ php_ctype };
+#         PHP::include( shift );
+#       };
+#     }
+#   }
 }
+
+# Static method
+# Loads optional modules for constructor
+# Takes: constructor properties
+# Throws: if module(s) load fails
+# Returns: n/a
 sub load_optional_modules {
   my( $class, $properties ) = @_;
   $class->load_optional_module_modperl( $properties );
   $class->load_optional_module_cgi( $properties );
   $class->load_optional_module_php( $properties );
 }
+
+# Static method
+# Loads the corresponding connection acceptor module
+# and assigns request attribute to an object if it is FCGI.pm to accept
+# only FCGI.pm ( default ) and CGI::Fast are currently supported
+# Takes: constructor properties
+# Throws: on correponding acceptor module load fails
+# Changes: optionally 'request' constructoir properties value
+# or %ENV values for CGI::Fast
+# Returns: n/a
 sub init_acceptor{
   my( $class, $properties ) = @_;
   my( $sock_name, $sock_queue ) = map{
     $properties->{ $_ }
   } qw/sock_name sock_queue/;
-  if( defined $properties->{ acceptor } and ( $properties->{ acceptor } eq 'cgi_fast' ) ){
+  if( defined $properties->{ acceptor }
+    and ( $properties->{ acceptor } eq 'cgi_fast' ) ) {
     $ENV{FCGI_SOCKET_PATH} = $sock_name;
     $ENV{FCGI_LISTEN_QUEUE} = $sock_queue;
     eval{ require CGI::Fast;
     1; } or die "$@ $!";
-  } else {
+  }
+  else {
     eval{ require FCGI;
     1; } or die "$@ $!";
     my $socket  = FCGI::OpenSocket( $sock_name, $sock_queue ) or die $!;
@@ -574,6 +570,12 @@ sub init_acceptor{
     $properties->{ request } = $request;
   }
 }
+
+# Static method
+# Constructor
+# Takes: optional properties hash ref
+# Throws: if CGI::Fast has made its BEGIN{} already
+# Returns: FCGI::Spawn object
 sub new {
   my $class = shift;
   my( $new_properties, $properties );
@@ -601,10 +603,19 @@ sub new {
   $self->assign_reloader;
   return $self;
 }
+
+# Object method
+# Assigns 'reloader' attribute for constructor
+# Reloader defines how the arbitrary module will be reloaded if its stat()
+# changed and the 'stats' attribute is on
+# Takes: n/a
+# Depends: on 'stats_reload_method' attribute, ArrayRef[Str]
+# Changes: 'reloader' attribute, ArrayRef[CodeRef] 
+# Returns: n/a
 sub assign_reloader{
   my $self = shift;
   if( defined( $self->{ stats_reload_method  } )
-      and ( 'ARRAY' eq $self->{ stats_reload_method }
+      and ( 'ARRAY' eq ref $self->{ stats_reload_method }
             and @{ $self->{ stats_reload_method } } > 0
         or (
           length $self->{ stats_reload_method }
@@ -614,13 +625,20 @@ sub assign_reloader{
     my $srm = $self->{ stats_reload_method };
     $srm = [ $srm ] unless ref $srm;
     my $reloader =
-      sub{
-        $self->$_( @_ ) foreach @$srm;
-      }
-    ;
-    $self->{ reloader } = $reloader;
+      sub{ foreach( @$srm ){ $self->$_( @_ ) } }
+    $self->{ 'reloader' } = $reloader;
   }
 }
+
+# Object method
+# Assigns 'acceptor' attribute for constructor
+# Acceptor defines how the connection will be handled
+# Currently only FCGI.pm and CGI::Fast are available
+# Takes: n/a
+# Depends: on 'acceptor' attribute, Str
+# Changes: 'acceptor' attribute, CodeRef
+# Returns: n/a
+# TODO: sub(s) name
 sub assign_acceptor{
   my $self = shift;
   my $acceptor = $self->{ acceptor };
@@ -635,17 +653,20 @@ sub assign_acceptor{
     };
   }
 }
+
+# Object method
+# Transforms 'clean_inc_subnamespace' property to files names without
+# extension for use to compare with %INC elements
+# Takes: n/a
+# Depends: on 'clean_inc_subnamespace' attribute, Str or ArrayRef[Str]
+# Changes: 'clean_inc_subnamespace' attribute, ArayRef[ Str ]
+# Returns: n/a
 sub make_clean_inc_subnamespace {
   my( $self, $properties ) = @_;
-  my $cisns = $properties->{ clean_inc_subnamespace };
-  if( '' eq ref $cisns ){
-    $cisns = [ $cisns ];
-  }
-  foreach( @$cisns ) {
-    $_ =~ s!::!/!g
-      if '' eq ref $_
-  }
-  $properties->{ clean_inc_subnamespace } = $cisns;
+  my $cisns = $properties->{ 'clean_inc_subnamespace' };
+  if( '' eq ref $cisns ){ $cisns = [ $cisns ]; }
+  foreach( @$cisns ) { if( '' eq ref $_ ) { $_ =~ s!::!/!g } }
+  $properties->{ 'clean_inc_subnamespace' } = $cisns;
 }
 
 sub _callout {

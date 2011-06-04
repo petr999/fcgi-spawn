@@ -10,7 +10,6 @@ use Const::Fast;
 
 use FCGI::Spawn::TestUtils;
 use FCGI::Spawn::BinUtils ':testutils';
-use FCGI::Spawn qw/statnames_to_policy/;
 
 extends( 'FCGI::Spawn::Tests', );
 
