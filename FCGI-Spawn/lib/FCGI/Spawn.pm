@@ -453,14 +453,14 @@ sub unlink_socket {
 # Returns: n/a
 sub sock_change {
     my $self      = shift;
-    my $sock_name = $self -> { 'sock_name' };
-    if ( defined $self -> { 'sock_chown' } ) {
+    my $sock_name = $self->{ 'sock_name' };
+    if ( defined $self->{ 'sock_chown' } ) {
         die($!) unless chown( @{ $self->{ 'sock_chown' } }, $sock_name );
     }
     if ( defined $self->{ 'sock_chmod' } ) {
-        die("Not a chmod for socket: " . $self->{ 'sock_chmod' })
+        die( "Not a chmod for socket: " . $self->{ 'sock_chmod' } )
             unless $self->{ 'sock_chmod' } = oct( $self->{ 'sock_chmod' } );
-        die("Chmod " . $self->{ 'sock_chmod' } . "$sock_name: $!")
+        die( "Chmod " . $self->{ 'sock_chmod' } . "$sock_name: $!" )
             unless chmod( $self->{ 'sock_chmod' } => $sock_name, );
     }
 }
@@ -473,7 +473,8 @@ sub sock_change {
 # Returns: n/a
 sub load_optional_module_modperl {
     my ( $class, $properties ) = @_;
-    if ( defined $properties->{ 'mod_perl' } and $properties->{ 'mod_perl' } ) {
+    if ( defined $properties->{ 'mod_perl' } and $properties->{ 'mod_perl' } )
+    {
         eval {
             require CGI;    # CGI.pm init may happen here
             $CGI::MOD_PERL = $properties->{ 'mod_perl' };
@@ -571,20 +572,22 @@ sub init_acceptor {
     {
         $ENV{ 'FCGI_SOCKET_PATH' }  = $sock_name;
         $ENV{ 'FCGI_LISTEN_QUEUE' } = $sock_queue;
-        die("$@ $!") unless (
+        die("$@ $!")
+            unless (
             eval {
                 require CGI::Fast;
                 1;
             }
-        );
+            );
     }
     else {
-        die("$@ $!") unless (
+        die("$@ $!")
+            unless (
             eval {
                 require FCGI;
                 1;
             }
-        );
+            );
         my $socket = FCGI::OpenSocket( $sock_name, $sock_queue ) or die $!;
         my $request =
             FCGI::Request( \*STDIN, \*STDOUT, \*STDERR, \%ENV, $socket, 1 )
@@ -619,7 +622,8 @@ sub new {
     $class->init_acceptor($properties);
     $class->load_optional_modules($properties);
     my $proc_manager = FCGI::ProcManager->new($properties);
-    if( defined $$properties{ 'maxlength' } ) {
+
+    if ( defined $$properties{ 'maxlength' } ) {
         $maxlength = $$properties{ 'maxlength' };
     }
     $class->make_clean_inc_subnamespace($properties);
@@ -650,11 +654,10 @@ sub assign_reloader {
         my $srm = $$self{ 'stats_reload_method' };
         $srm = [$srm] unless ref $srm;
         my $reloader = subname(
-                'reloader'
-                => sub {
-                    foreach my $method (@$srm) { $self->$method(@_) }
-                },
-            );
+            'reloader' => sub {
+                foreach my $method (@$srm) { $self->$method(@_) }
+            },
+        );
         $self->{ 'reloader' } = $reloader;
     }
 }
@@ -673,7 +676,7 @@ sub assign_acceptor {
     if ( $acceptor eq 'cgi_fast' ) {
         $$self{ 'acceptor' } = subname(
             'accept_cgi_fast' => sub {
-                return $fcgi = CGI::Fast -> new;
+                return $fcgi = CGI::Fast->new;
             },
         );
         $use_cgi_fast = 1;
@@ -682,10 +685,10 @@ sub assign_acceptor {
         $$self{ 'acceptor' } = subname(
             'acceptor_fcgi' => sub {
                 my $request = $$self{ 'request' };
-                my $rv      = ( $request -> Accept() == 0 );
+                my $rv      = ( $request->Accept() == 0 );
                 return $rv;
             },
-        )
+        );
     }
 }
 
@@ -699,9 +702,9 @@ sub assign_acceptor {
 sub make_clean_inc_subnamespace {
     my ( $self => $properties, ) = @_;
     my $cisns = $$properties{ 'clean_inc_subnamespace' };
-    if ('' eq ref $cisns) { $cisns = [$cisns] }
+    if ( '' eq ref $cisns ) { $cisns = [$cisns] }
     foreach (@$cisns) {
-        if ('' eq ref $_) { $_ =~ s!::!/!g }
+        if ( '' eq ref $_ ) { $_ =~ s!::!/!g }
     }
     $$properties{ 'clean_inc_subnamespace' } = $cisns;
 }
@@ -724,14 +727,16 @@ sub _callout {
         $procname = $0;
         $0        = $_[0];
     }
+
     # http://bugs.vereshagin.org/show_bug.cgi?id=7
     # if ( $$self{ 'use_php' } and $$self{ 'php_fext' }(@_) ) {
     #     $$self{ 'php_callout' }(@_);
     # }
     # else {
-        $$self{ callout }(@_ => $fcgi);
+    $$self{ callout }( @_ => $fcgi );
+
     # }
-    if ($self->{ 'procname' } )  { $0   = $procname }
+    if ( $self->{ 'procname' } ) { $0   = $procname }
     if ( $self->{ 'save_env' } ) { %ENV = %save_env }
 }
 
@@ -741,15 +746,16 @@ sub _callout {
 # Changes: 'handlers' state
 # Returns: n/a
 sub save_handlers {
-    my $self = shift;
+    my $self     = shift;
     my $handlers = Apache->request->{ 'HANDLERS' };
     Apache::Fake->new;
     Apache->request->{ 'HANDLERS' } = $handlers;
+
     # for modperl_reset
     $self->set_state( 'handlers' => $handlers, );
     foreach my $sref (
-        \$ENV{ 'MOD_PERL' }, \$CGI::MOD_PERL,
-        \$ENV{ 'MOD_PERL_API_VERSION' },
+        \$ENV{ 'MOD_PERL' },
+        \$CGI::MOD_PERL, \$ENV{ 'MOD_PERL_API_VERSION' },
         )
     {
         $$sref = $self->{ 'mod_perl' };
@@ -797,19 +803,19 @@ sub clean_inc_particular {
 # and 'is_prepared' property
 # Returns: n/a
 sub prepare {
-    my $self         = shift;
+    my $self = shift;
 
     # fork is done here
     my $proc_manager = $self->{ 'proc_manager' };
     $proc_manager->pm_manage();
 
     # remember global vars set for cleaning in loop
-    if( $self->{ 'clean_main_space' } ) {
+    if ( $self->{ 'clean_main_space' } ) {
         $self->set_state( 'fcgi_spawn_main', { %main:: } );
     }
 
     # remember %INC to wipe out changes in loop
-    if( $self->{ 'clean_inc_hash' } == 2 ) {
+    if ( $self->{ 'clean_inc_hash' } == 2 ) {
         $self->set_state( 'fcgi_spawn_inc', { %INC } );
     }
 
@@ -821,7 +827,7 @@ sub prepare {
 # and morning-after(s) for a next callout
 # Takes: n/a
 # Depends: on properties 'is_prepared', 'proc_manager', 'max_requests',
-# package's $use_cgi_fast and  environment's SCRIPT_FILENAME 
+# package's $use_cgi_fast and  environment's SCRIPT_FILENAME
 # Changes: package's $fcgi and things according to callout and its arounds
 # Returns: n/a
 sub spawn {
@@ -829,7 +835,7 @@ sub spawn {
     $self->prepare unless $$self{ 'is_prepared' };
     my $proc_manager = $self->{ 'proc_manager' };
     my $max_requests = $self->{ 'max_requests' };
-    my $req_count = 0;
+    my $req_count    = 0;
     $self->cgi_reset_globals;
     while ( $$self{ 'acceptor' }() ) {
         $proc_manager->pm_pre_dispatch();
@@ -841,7 +847,6 @@ sub spawn {
         $req_count++;
         CORE::exit if $req_count > $max_requests;
         $proc_manager->pm_post_dispatch();
-        # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
     }
 }
 
@@ -856,7 +861,7 @@ sub spawn {
 sub get_inc_stats {
     my $stat_src  = shift;
     my %inc_state = ();
-    my $fns = [ defined($stat_src) ? keys(%$stat_src) : values %INC ];
+    my $fns       = [ defined($stat_src) ? keys(%$stat_src) : values %INC ];
     foreach my $src_file (@$fns) {
         next unless defined($src_file) and -f $src_file;
         my $stat = [ stat $src_file ];
@@ -878,7 +883,7 @@ sub set_state_stats {
     my ( $self, $pref, $stat_src ) = @_;
     my $stats_name = 'stats';
     $stats_name = $pref . "_$stats_name" if defined $pref;
-    my $stats = get_inc_stats( $stat_src );
+    my $stats = get_inc_stats($stat_src);
     $self->set_state( $stats_name, $stats );
 }
 
@@ -947,14 +952,15 @@ sub cgi_reset_globals {
     if (    ( $self->{ 'use_cgi' } >= 0 )
         and defined( $INC{ 'CGI.pm' } )
         and
-        ( $self->{ 'acceptor' } ne 'cgi_fast' ) # CGI::Fast resets by itself
-        and not $self->{ 'mod_perl' }   # Apache::Fake resets by its handler
+        ( $self->{ 'acceptor' } ne 'cgi_fast' )   # CGI::Fast resets by itself
+        and not $self->{ 'mod_perl' }    # Apache::Fake resets by its handler
         )
     {
+
         # to get rid of CGI::save_request consequences
-        die( $! ) unless CGI->_reset_globals;
+        die($!) unless CGI->_reset_globals;
     }
-    if( $use_cgi_fast ){ undef $fcgi };
+    if ($use_cgi_fast) { undef $fcgi }
 }
 
 # Object method
@@ -968,7 +974,7 @@ sub modperl_reset {
     my $self     = shift;
     my $handlers = Apache->request->{ 'HANDLERS' }->{ 'PerlCleanupHandler' };
     foreach my $handler (@$handlers) {
-        if ( defined $handler ) { $handler->(Apache->request) }
+        if ( defined $handler ) { $handler->( Apache->request ) }
     }
     Apache->cleanup_request;
     Apache->request->{ 'HANDLERS' } = $self->get_state('handlers');
@@ -984,8 +990,10 @@ sub modperl_reset {
 sub postspawn_dispatch {
     my $self = shift;
     $self->ipc_pid_delete;
+
     # remember %INC to wipe out changes in loop
-    if( $self->{ 'stats' } ) { $self->set_state_stats }
+    if ( $self->{ 'stats' } ) { $self->set_state_stats }
+
     # remember %xinc to wipe out changes in loop
     if ( $self->{ 'x_stats' } ) { $self->set_state_stats( 'x' => \%xinc, ) }
     if ( $self->{ 'mod_perl' } ) { $self->modperl_reset }
@@ -1003,18 +1011,20 @@ sub postspawn_dispatch {
 # Returns: n/a
 sub prespawn_dispatch {
     my ( $self, $sn ) = @_;
-    if( $self->{ 'clean_inc_hash' } == 1 ) {
+    if ( $self->{ 'clean_inc_hash' } == 1 ) {
+
         # make %INC to forget about the script included
-        if( defined $INC{ $sn } ) { delete $INC{ $sn } }
+        if ( defined $INC{ $sn } ) { delete $INC{ $sn } }
     }
     elsif ( $self->{ 'clean_inc_hash' } == 2 ) {
+
         # if %INC change is unwanted at all
         my $fcgi_spawn_inc = $self->get_state('fcgi_spawn_inc');
         %INC = %$fcgi_spawn_inc;
     }
     $self->clean_inc_particular;
-    if( $self->{ 'stats' } ) { $self->clean_inc_modified($sn) }
-    if( $self->{ 'x_stats' } ) { $self->clean_xinc_modified; }
+    if ( $self->{ 'stats' } )   { $self->clean_inc_modified($sn) }
+    if ( $self->{ 'x_stats' } ) { $self->clean_xinc_modified; }
     if ( $self->{ 'clean_main_space' } ) {    # actual cleaning vars
         foreach my $key ( keys %main:: ) {
             unless ( $self->defined_state( 'fcgi_spawn_main' => $key, ) ) {
@@ -1024,8 +1034,9 @@ sub prespawn_dispatch {
         }
     }
     $self->ipc_pid_insert;
+
     # for cleanups assigned on preload
-    if ( $$self{ 'mod_perl' } ) { $self -> save_handlers; }
+    if ( $$self{ 'mod_perl' } ) { $self->save_handlers; }
 }
 
 # Object method
@@ -1065,19 +1076,22 @@ sub ipc_pid_delete {
 # Returns: n/a
 sub xinc_dependent {
     my $fn = shift;
+
     # Starts from 1
-    for( my $i = 1; $i < scalar @$fn; $i ++ ){
-        my $arr_fn = $fn->[ $i ];
+    for ( my $i = 1; $i < scalar @$fn; $i++ ) {
+        my $arr_fn = $fn->[$i];
         if ( defined $xinc{ $arr_fn } ) {
             if ( 'ARRAY' eq ref $xinc{ $arr_fn } ) {
-                unless( grep { $_ eq $$fn[0] } @{ $xinc{ $arr_fn } } ) {
+                unless ( grep { $_ eq $$fn[0] } @{ $xinc{ $arr_fn } } ) {
                     push @{ $xinc{ $arr_fn } } => $$fn[0];
                 }
             }
-            else { die "xinc: dependence $arr_fn is previously defined";
+            else {
+                die "xinc: dependence $arr_fn is previously defined";
             }
         }
-        else { $xinc{ $arr_fn } = [ $$fn[0] ];
+        else {
+            $xinc{ $arr_fn } = [ $$fn[0] ];
         }
     }
 }
@@ -1105,7 +1119,8 @@ sub xinc {
                 $xinc{ $fn } = $rv;
             }
         }
-        elsif ( ( $fref eq 'ARRAY' ) and @$fn > 0 ) {                       
+        elsif ( ( $fref eq 'ARRAY' ) and @$fn > 0 ) {
+
             # $fn is a list of the filenames
             if ( defined $xinc{ $$fn[0] } ) {
                 $rv = $xinc{ $$fn[0] };
@@ -1114,6 +1129,7 @@ sub xinc {
                 $rv = $cref->(@$fn);
                 $xinc{ $$fn[0] } = $rv;
             }
+
             # dependent files names
             if ( @$fn > 1 ) { &xinc_dependent($fn) }
         }
@@ -1140,21 +1156,21 @@ sub clean_xinc_modified {
             my $new_stat = $new_stats->{ $item };
             my $old_stat = $old_stats->{ $item };
             foreach my $i (@$policy) {
-                my $elem_chng = not(defined($$new_stat[$i])
-                    and defined($$old_stat[$i])
-                );
-                unless( $elem_chng ){
+                my $elem_chng = not( defined( $$new_stat[$i] )
+                    and defined( $$old_stat[$i] ) );
+                unless ($elem_chng) {
                     my $new_element = $$new_stat[$i];
                     my $old_element = $$old_stat[$i];
                     $elem_chng = ( $new_element != $old_element );
                 }
-                if ( $elem_chng ) { $modified = 1 }
+                if ($elem_chng) { $modified = 1 }
                 last if $elem_chng;
             }
         }
-        else { $modified = 1;
+        else {
+            $modified = 1;
         }
-        if ($modified) { delete_xinc_item( $item ) }
+        if ($modified) { delete_xinc_item($item) }
     }
 }
 
@@ -1167,10 +1183,10 @@ sub clean_xinc_modified {
 # Returns: n/a
 sub delete_xinc_item {
     my $item = shift;
-    if( defined $xinc{ $item } ) {
+    if ( defined $xinc{ $item } ) {
         my $value = $xinc{ $item };
         if ( 'ARRAY' eq ref $value ) {
-            foreach my $inner( @$value ){ delete_xinc_item($inner) }
+            foreach my $inner (@$value) { delete_xinc_item($inner) }
         }
         delete $xinc{ $item };
     }
@@ -1193,19 +1209,19 @@ sub clean_inc_modified {
             my $new_stat = $new_stats->{ $module };
             my $old_stat = $old_stats->{ $module };
             foreach my $i (@$policy) {
-                my $elem_chng = not(defined($$new_stat[$i])
-                    and defined $$old_stat[$i]
-                );
-                unless( $elem_chng ) {
+                my $elem_chng = not( defined( $$new_stat[$i] )
+                    and defined $$old_stat[$i] );
+                unless ($elem_chng) {
                     my $new_element = $new_stat->[$i];
                     my $old_element = $old_stat->[$i];
                     $elem_chng = ( $new_element != $old_element );
                 }
-                if( $elem_chng ){ $modified = 1 }
+                if ($elem_chng) { $modified = 1 }
                 last if $elem_chng;
             }
         }
-        if( $modified and ( $module ne $sn ) ) { $$self{ 'reloader' }($module)
+        if ( $modified and ( $module ne $sn ) ) {
+            $$self{ 'reloader' }($module);
         }
     }
 }
