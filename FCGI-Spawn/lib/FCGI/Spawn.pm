@@ -4,10 +4,11 @@ use strict;
 use warnings;
 
 use vars qw($VERSION);
+
 BEGIN {
-  our $VERSION = '0.16.1';
-  no warnings 'once'; # keep from '$Default only once'
-  our $Default = 'FCGI::Spawn';
+    our $VERSION = '0.16.1';
+    no warnings 'once';    # keep from '$Default only once'
+    our $Default = 'FCGI::Spawn';
 }
 
 =pod
@@ -20,7 +21,7 @@ FCGI::Spawn - C<FastCGI> server for C<CGI>-like applications effective multiproc
 
 Intended to use from properly prepared environments only:
 
-  FCGI::Spawn->new->spawn( \%conf );
+  FCGI::Spawn -> new -> spawn(\%conf);
 
 The C<fcgi_spawn> script supplied as an example of such a use should care about sadly mandatory whistles and bells, at least the security is a king in sight of this:
 
@@ -74,7 +75,7 @@ This is because of setting up the socket communication in the C<CGI::Fast>, whic
 
 at the moment this module is being C<used>, e. g. IS ABSENT in the %INC global hash.
 
-=item * C<CGI> scripts ( if not C<CGI.pm> ) can be tweaked to use $FCGI::Spawn::fcgi instead of new C<CGI> or CGI->new().
+=item * C<CGI> scripts ( if not C<CGI.pm> ) can be tweaked to use $FCGI::Spawn::fcgi instead of new C<CGI> or CGI -> new().
 
 In other case they may not be able to process HTTP POST.
 
@@ -321,7 +322,7 @@ Makes your C<FastCGI> server to act as the simple C<CGI>, except POST input requ
  use HTTP::Request::Common;
   ...
 
-  $spawn->{  callout } = sub{
+  $spawn -> { 'callout' } = sub{
     my( $sn, $fcgi ) = @_;
     my( $in, $out, $err ) ;
     IF( $env{'REQUEST_METHOD'} eq 'POST' ){
@@ -329,19 +330,19 @@ Makes your C<FastCGI> server to act as the simple C<CGI>, except POST input requ
           "Content_Type" => $ENV{'CONTENT_TYPE'},
           "Content" => [
             map {
-                  my $val = $FCGI::Spawn::fcgi->param( $_ );
+                  my $val = $FCGI::Spawn::fcgi -> param($_);
                   if( 'Fh' eq ref $val ){
-                    $val =  [ ${ $FCGI::Spawn::fcgi->{'.tmpfiles'}->{
+                    $val =  [ ${ $FCGI::Spawn::fcgi -> { '.tmpfiles' } -> {
                          ${ $FCGI::Spawn::fcgi->param( $_ ) }
-                      }->{name} },
-                      $FCGI::Spawn::fcgi->param( $_ ) ,
+                      } -> { 'name' } },
+                      $FCGI::Spawn::fcgi -> param($_) ,
                     ];
                   }
                   $_ => $val
                 }
-                  $FCGI::Spawn::fcgi->param
+                  $FCGI::Spawn::fcgi -> param
           ],
-        )->content;
+        ) -> content;
         $ENV{ CONTENT_LENGTH } =
         $ENV{ HTTP_CONTENT_LENGTH } =
         length $in;
@@ -399,44 +400,49 @@ License: same as FCGI::ProcManager's one. More info on FCGI::Spawn at: L<http://
 =cut
 
 use Const::Fast;
-use File::Basename qw/fileparse/;
+use File::Basename qw/dirname/;
 use FCGI::ProcManager;
 use FCGI::Spawn::BinUtils ':modules';
+use Sub::Name;
 
-my $fcgi = undef; # fastcgi object
-my $use_cgi_fast = 0; # use CGI::Fast or not
-my %xinc; # same as %INC but for templates ( x_stats feature )
+my $fcgi         = undef;    # fastcgi object
+my $use_cgi_fast = 0;        # use CGI::Fast or not
+my %xinc;    # same as %INC but for templates ( x_stats feature )
 
-my $maxlength=100000; # default maximum length of a perl file to call out
-
+my $maxlength = 100000;    # default maximum length of a perl file to call out
 
 # defaults for spawn object
 const my $defaults => {
-  qw/n_processes 5 max_requests 20 clean_inc_hash 0
-  clean_main_space 0 clean_inc_subnamespace/ => [],
-  'callout' => sub{ my $fcgi = pop; do shift; },
-  qw/stats 1 stats_policy/ => statnames_to_policy( 'mtime', ),
-  qw/x_stats 1 x_stats_policy/ => statnames_to_policy( 'mtime', ),
-  'state' => {}, qw/seed_rand 1 save_env 1 procname 1 is_prepared 0
-  acceptor fcgi use_cgi 0 sock_name/ => '/tmp/spawner.sock',
-  sock_queue => 100, # default from CGI::Fast
-  keep_socket => 0, stats_reload_method => [ qw/reload_symtable_by_module/ ],
-  reload_failover => 0, mod_perl => 0, use_php => 0, php_fext => 'php',
-  php_ctype => 'text/html',
+    qw/n_processes 5 max_requests 20 clean_inc_hash 0
+        clean_main_space 0 clean_inc_subnamespace/ => [],
+    'callout' => sub { my $fcgi = pop; do shift; },
+    qw/stats 1 stats_policy/     => statnames_to_policy( 'mtime', ),
+    qw/x_stats 1 x_stats_policy/ => statnames_to_policy( 'mtime', ),
+    'state'                      => {},
+    qw/seed_rand 1 save_env 1 procname 1 is_prepared 0
+        acceptor fcgi use_cgi 0 sock_name/ => '/tmp/spawner.sock',
+    sock_queue  => 100,    # default from CGI::Fast
+    keep_socket => 0,
+    stats_reload_method => [qw/reload_symtable_by_module/],
+    reload_failover     => 0,
+    mod_perl            => 0,
+    use_php             => 0,
+    php_fext            => 'php',
+    php_ctype           => 'text/html',
 };
 
-# Static function
+# Function
 # Unlinks local unix socket
 # Takes: socket file name
 # Throws: on unsuccessful removal or if non-socket exists with the same name
 # Returns: n/a
-sub unlink_socket{
-  my $sock_name = shift;
-  if( -e $sock_name ){
-    die( "Exists $sock_name: not a socket" ) unless ( -S $sock_name );
-    die( "Socket $sock_name: unremoveable" )
-      unless unlink $sock_name;
-  }
+sub unlink_socket {
+    my $sock_name = shift;
+    if ( -e $sock_name ) {
+        die("Exists $sock_name: not a socket") unless ( -S $sock_name );
+        die("Socket $sock_name: unremoveable")
+            unless unlink $sock_name;
+    }
 }
 
 # Object method
@@ -445,18 +451,18 @@ sub unlink_socket{
 # Takes: n/a
 # Throws: wrong attribute(s) or chown/chmod error
 # Returns: n/a
-sub sock_change{
-  my $self = shift;
-  my $sock_name = $self->{ sock_name };
-  if( defined $self->{sock_chown} ){
-    die( $! ) unless chown( @{ $self->{sock_chown} }, $sock_name );
-  }
-  if( defined $self->{sock_chmod} ){
-    die( "Not a chmod for socket: ". $self->{ sock_chmod } )
-      unless $self->{ sock_chmod } = oct( $self->{ sock_chmod } );
-    die "Chmod " . $self->{sock_chmod} . "$sock_name: $!"
-      unless chmod( $self->{sock_chmod}, $sock_name );
-  }
+sub sock_change {
+    my $self      = shift;
+    my $sock_name = $self -> { 'sock_name' };
+    if ( defined $self -> { 'sock_chown' } ) {
+        die($!) unless chown( @{ $self->{ 'sock_chown' } }, $sock_name );
+    }
+    if ( defined $self->{ 'sock_chmod' } ) {
+        die("Not a chmod for socket: " . $self->{ 'sock_chmod' })
+            unless $self->{ 'sock_chmod' } = oct( $self->{ 'sock_chmod' } );
+        die("Chmod " . $self->{ 'sock_chmod' } . "$sock_name: $!")
+            unless chmod( $self->{ 'sock_chmod' } => $sock_name, );
+    }
 }
 
 # Static method
@@ -466,19 +472,25 @@ sub sock_change{
 # Throws: on error loading module
 # Returns: n/a
 sub load_optional_module_modperl {
-  my( $class, $properties ) = @_;
-  if( defined $properties->{ mod_perl } and $properties->{ mod_perl } ){
-    eval{
-      require CGI; # CGI.pm init may happen here
-      $CGI::MOD_PERL = $properties->{ mod_perl };
-      require Apache::Fake;
-      $mod_perl::VERSION = $properties->{ mod_perl };
-      foreach( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, ){
-        $$_ = $properties->{mod_perl};
-      }
-      require CGI::Cookie;
-    1; } or die "$@ $!";
-  }
+    my ( $class, $properties ) = @_;
+    if ( defined $properties->{ 'mod_perl' } and $properties->{ 'mod_perl' } ) {
+        eval {
+            require CGI;    # CGI.pm init may happen here
+            $CGI::MOD_PERL = $properties->{ 'mod_perl' };
+            require Apache::Fake;
+            $mod_perl::VERSION = $properties->{ 'mod_perl' };
+            foreach (
+                \$ENV{ 'MOD_PERL' },
+                \$ENV{ 'MOD_PERL_API_VERSION' },
+                \$CGI::MOD_PERL,
+                )
+            {
+                $$_ = $properties->{ 'mod_perl' };
+            }
+            require CGI::Cookie;
+            1;
+        } or die "$@ $!";
+    }
 }
 
 # Static method
@@ -487,14 +499,15 @@ sub load_optional_module_modperl {
 # Throws: on error loading module
 # Returns: n/a
 sub load_optional_module_cgi {
-  my( $class, $properties ) = @_;
-  if( defined $properties->{ use_cgi } and $properties->{ use_cgi } ){
-    die( "$@ $!" ) unless eval{ require CGI; 1; };
-  }
+    my ( $class => $properties, ) = @_;
+    if ( defined $properties->{ 'use_cgi' } and $properties->{ 'use_cgi' } ) {
+        die("$@ $!") unless eval { require CGI; 1; };
+    }
 }
 
 # http://bugs.vereshagin.org/show_bug.cgi?id=7
 sub load_optional_module_php {
+
 #   my( $class, $properties ) = @_;
 #   if( defined $properties->{ use_php } and $properties->{ use_php } ){
 #     eval{ require PHP;
@@ -534,10 +547,10 @@ sub load_optional_module_php {
 # Throws: if module(s) load fails
 # Returns: n/a
 sub load_optional_modules {
-  my( $class, $properties ) = @_;
-  $class->load_optional_module_modperl( $properties );
-  $class->load_optional_module_cgi( $properties );
-  $class->load_optional_module_php( $properties );
+    my ( $class => $properties, ) = @_;
+    $class->load_optional_module_modperl($properties);
+    $class->load_optional_module_cgi($properties);
+    $class->load_optional_module_php($properties);
 }
 
 # Static method
@@ -549,26 +562,35 @@ sub load_optional_modules {
 # Changes: optionally 'request' constructoir properties value
 # or %ENV values for CGI::Fast
 # Returns: n/a
-sub init_acceptor{
-  my( $class, $properties ) = @_;
-  my( $sock_name, $sock_queue ) = map{
-    $properties->{ $_ }
-  } qw/sock_name sock_queue/;
-  if( defined $properties->{ acceptor }
-    and ( $properties->{ acceptor } eq 'cgi_fast' ) ) {
-    $ENV{FCGI_SOCKET_PATH} = $sock_name;
-    $ENV{FCGI_LISTEN_QUEUE} = $sock_queue;
-    eval{ require CGI::Fast;
-    1; } or die "$@ $!";
-  }
-  else {
-    eval{ require FCGI;
-    1; } or die "$@ $!";
-    my $socket  = FCGI::OpenSocket( $sock_name, $sock_queue ) or die $!;
-    my $request = FCGI::Request( \*STDIN, \*STDOUT, \*STDERR,
-          \%ENV, $socket, 1 ) or die $!;
-    $properties->{ request } = $request;
-  }
+sub init_acceptor {
+    my ( $class => $properties, ) = @_;
+    my ( $sock_name => $sock_queue, ) =
+        map { $properties->{ $_ } } qw/sock_name sock_queue/;
+    if ( defined $properties->{ 'acceptor' }
+        and ( $properties->{ 'acceptor' } eq 'cgi_fast' ) )
+    {
+        $ENV{ 'FCGI_SOCKET_PATH' }  = $sock_name;
+        $ENV{ 'FCGI_LISTEN_QUEUE' } = $sock_queue;
+        die("$@ $!") unless (
+            eval {
+                require CGI::Fast;
+                1;
+            }
+        );
+    }
+    else {
+        die("$@ $!") unless (
+            eval {
+                require FCGI;
+                1;
+            }
+        );
+        my $socket = FCGI::OpenSocket( $sock_name, $sock_queue ) or die $!;
+        my $request =
+            FCGI::Request( \*STDIN, \*STDOUT, \*STDERR, \%ENV, $socket, 1 )
+            or die $!;
+        $properties->{ request } = $request;
+    }
 }
 
 # Static method
@@ -577,31 +599,36 @@ sub init_acceptor{
 # Throws: if CGI::Fast has made its BEGIN{} already
 # Returns: FCGI::Spawn object
 sub new {
-  my $class = shift;
-  my( $new_properties, $properties );
-  if( $properties = shift ){
-    $properties = { %$defaults, %$properties };
-  } else {
-    $properties = $defaults;
-  }
-  no warnings 'once'; # keep from 'Ext_Request only once'
-  die "CGI::Fast made its own BEGIN already!"
-    if defined $CGI::Fast::Ext_Request;
-  my $sock_name = $properties->{ sock_name };
-  my $sock_queue = $properties->{ sock_queue };
-  my $is_sock_tcp = &is_sock_tcp( $sock_name );
-  &unlink_socket( $sock_name ) unless $is_sock_tcp or $properties->{ keep_socket };
-  $class->init_acceptor( $properties );
-  $class->load_optional_modules( $properties );
-  my $proc_manager = FCGI::ProcManager->new( $properties );
-  defined $properties->{maxlength} and $maxlength = $properties->{maxlength};
-  $class->make_clean_inc_subnamespace( $properties );
-  $properties->{proc_manager} = $proc_manager;
-  my $self = bless $properties, $class;
-  $self->sock_change unless $is_sock_tcp;
-  $self->assign_acceptor;
-  $self->assign_reloader;
-  return $self;
+    my $class = shift;
+    my ( $new_properties, $properties );
+    if ( $properties = shift ) {
+        $properties = { %$defaults, %$properties };
+    }
+    else {
+        $properties = $defaults;
+    }
+    no warnings 'once';    # keep from 'Ext_Request only once'
+    die("CGI::Fast made its own BEGIN already!")
+        if defined $CGI::Fast::Ext_Request;
+    my $sock_name   = $properties->{ 'sock_name' };
+    my $sock_queue  = $properties->{ 'sock_queue' };
+    my $is_sock_tcp = &is_sock_tcp($sock_name);
+    &unlink_socket($sock_name)
+        unless $is_sock_tcp
+            or $properties->{ 'keep_socket' };
+    $class->init_acceptor($properties);
+    $class->load_optional_modules($properties);
+    my $proc_manager = FCGI::ProcManager->new($properties);
+    if( defined $$properties{ 'maxlength' } ) {
+        $maxlength = $$properties{ 'maxlength' };
+    }
+    $class->make_clean_inc_subnamespace($properties);
+    $properties->{ 'proc_manager' } = $proc_manager;
+    my $self = bless( $properties => $class, );
+    $self->sock_change unless $is_sock_tcp;
+    $self->assign_acceptor;
+    $self->assign_reloader;
+    return $self;
 }
 
 # Object method
@@ -610,24 +637,26 @@ sub new {
 # changed and the 'stats' attribute is on
 # Takes: n/a
 # Depends: on 'stats_reload_method' attribute, ArrayRef[Str]
-# Changes: 'reloader' attribute, ArrayRef[CodeRef] 
+# Changes: 'reloader' attribute, ArrayRef[CodeRef]
 # Returns: n/a
-sub assign_reloader{
-  my $self = shift;
-  if( defined( $self->{ stats_reload_method  } )
-      and ( 'ARRAY' eq ref $self->{ stats_reload_method }
-            and @{ $self->{ stats_reload_method } } > 0
-        or (
-          length $self->{ stats_reload_method }
+sub assign_reloader {
+    my $self = shift;
+    if (defined( $$self{ 'stats_reload_method' } )
+        and ( 'ARRAY' eq ref $$self{ 'stats_reload_method' }
+            and @{ $$self{ 'stats_reload_method' } } > 0
+            or ( length $$self{ 'stats_reload_method' } ) )
         )
-      )
-  ){
-    my $srm = $self->{ stats_reload_method };
-    $srm = [ $srm ] unless ref $srm;
-    my $reloader =
-      sub{ foreach( @$srm ){ $self->$_( @_ ) } }
-    $self->{ 'reloader' } = $reloader;
-  }
+    {
+        my $srm = $$self{ 'stats_reload_method' };
+        $srm = [$srm] unless ref $srm;
+        my $reloader = subname(
+                'reloader'
+                => sub {
+                    foreach my $method (@$srm) { $self->$method(@_) }
+                },
+            );
+        $self->{ 'reloader' } = $reloader;
+    }
 }
 
 # Object method
@@ -638,20 +667,26 @@ sub assign_reloader{
 # Depends: on 'acceptor' attribute, Str
 # Changes: 'acceptor' attribute, CodeRef
 # Returns: n/a
-# TODO: sub(s) name
-sub assign_acceptor{
-  my $self = shift;
-  my $acceptor = $self->{ acceptor };
-  if( $acceptor eq 'cgi_fast' ){
-    $self->{ acceptor } = sub{ $fcgi = CGI::Fast->new };
-    $use_cgi_fast = 1;
-  } else {  # $acceptor eq 'fcgi'
-    $self->{ acceptor } = sub{
-      my $request = $self->{ request };
-      my $rv = $request->Accept == 0;
-      return $rv;
-    };
-  }
+sub assign_acceptor {
+    my $self     = shift;
+    my $acceptor = $$self{ 'acceptor' };
+    if ( $acceptor eq 'cgi_fast' ) {
+        $$self{ 'acceptor' } = subname(
+            'accept_cgi_fast' => sub {
+                return $fcgi = CGI::Fast -> new;
+            },
+        );
+        $use_cgi_fast = 1;
+    }
+    else {    # $acceptor eq 'fcgi'
+        $$self{ 'acceptor' } = subname(
+            'acceptor_fcgi' => sub {
+                my $request = $$self{ 'request' };
+                my $rv      = ( $request -> Accept() == 0 );
+                return $rv;
+            },
+        )
+    }
 }
 
 # Object method
@@ -662,334 +697,541 @@ sub assign_acceptor{
 # Changes: 'clean_inc_subnamespace' attribute, ArayRef[ Str ]
 # Returns: n/a
 sub make_clean_inc_subnamespace {
-  my( $self, $properties ) = @_;
-  my $cisns = $properties->{ 'clean_inc_subnamespace' };
-  if( '' eq ref $cisns ){ $cisns = [ $cisns ]; }
-  foreach( @$cisns ) { if( '' eq ref $_ ) { $_ =~ s!::!/!g } }
-  $properties->{ 'clean_inc_subnamespace' } = $cisns;
+    my ( $self => $properties, ) = @_;
+    my $cisns = $$properties{ 'clean_inc_subnamespace' };
+    if ('' eq ref $cisns) { $cisns = [$cisns] }
+    foreach (@$cisns) {
+        if ('' eq ref $_) { $_ =~ s!::!/!g }
+    }
+    $$properties{ 'clean_inc_subnamespace' } = $cisns;
 }
 
+# Object method
+# Calls the 'callout' attribute as a sub
+# Performs necessary savings of environment and/or temporarily changes
+# process name
+# Takes: cgi script file name
+# Depends: on 'save_env' and 'procname' attributes
+# Changes: globals according to cgi script name, 'procname' and 'save_env'
+# attributes
+# Returns: n/a
 sub _callout {
-  my $self = shift;
-  my %save_env;
-  %save_env = %ENV if $self->{ save_env };
-  my $procname;
-  if( $self->{ procname } ){
-    $procname = $0; $0 = $_[0];
-  }
-  if( $self->{ use_php } and $self->{ php_fext }->( @_ ) ){
-    $self->{ php_callout }->( @_ );
-  } else {
-    $$self{callout}( @_ );
-  }
-  $0 = $procname if $self->{ procname };
-  %ENV = %save_env if $self->{ save_env };
+    my $self = shift;
+    my %save_env;
+    %save_env = %ENV if $$self{ 'save_env' };
+    my $procname;
+    if ( $$self{ 'procname' } ) {
+        $procname = $0;
+        $0        = $_[0];
+    }
+    # http://bugs.vereshagin.org/show_bug.cgi?id=7
+    # if ( $$self{ 'use_php' } and $$self{ 'php_fext' }(@_) ) {
+    #     $$self{ 'php_callout' }(@_);
+    # }
+    # else {
+        $$self{ callout }(@_ => $fcgi);
+    # }
+    if ($self->{ 'procname' } )  { $0   = $procname }
+    if ( $self->{ 'save_env' } ) { %ENV = %save_env }
 }
 
+# Object method
+# Saves mod_perl handlers as a state
+# Takes: n/a
+# Changes: 'handlers' state
+# Returns: n/a
+sub save_handlers {
+    my $self = shift;
+    my $handlers = Apache->request->{ 'HANDLERS' };
+    Apache::Fake->new;
+    Apache->request->{ 'HANDLERS' } = $handlers;
+    # for modperl_reset
+    $self->set_state( 'handlers' => $handlers, );
+    foreach my $sref (
+        \$ENV{ 'MOD_PERL' }, \$CGI::MOD_PERL,
+        \$ENV{ 'MOD_PERL_API_VERSION' },
+        )
+    {
+        $$sref = $self->{ 'mod_perl' };
+    }
+}
+
+# Object method
+# Calls out things to happen on connection accept concerning cgi script
+# saves mod_perl handlers from modification by ->_callout()
+# and calls ->postspawn_dispatch()
+# Takes: cgi script file name
+# Depends: on 'mod_perl' attribute
+# Changes: 'saved_handlers' attributes
 sub callout {
-  my $self = shift;
-    if( $self->{ mod_perl } ){
-      my $handlers = Apache->request->{ HANDLERS }; # for cleanups assigned on preload
-      Apache::Fake->new;
-      Apache->request->{ HANDLERS } = $handlers;
-      $self->{ saved_handlers } = $handlers; # for modperl_reset
-      foreach( \$ENV{ MOD_PERL }, \$ENV{ MOD_PERL_API_VERSION }, \$CGI::MOD_PERL, ){
-        $$_ = $self->{mod_perl};
-      }
-    }
-  $self->_callout( @_ );
-  $self->postspawn_dispatch;
-}
-
-sub clean_inc_particular {
-  my $self= shift;
-  map {
-    my $subnamespace_to_clean = $_;
-    map {
-      $self->{ reloader }->( $INC{ $_ } );
-    } grep {  $subnamespace_to_clean eq substr $_, 0, length $subnamespace_to_clean  }
-        keys %INC
-  } @{ $self->{ clean_inc_subnamespace  } };
-}
-
-sub prepare {
-  my $self = shift;
-  my $proc_manager = $self->{ proc_manager };
-  $proc_manager->pm_manage();
-  $self->set_state( 'fcgi_spawn_main', { %main:: } ) if $self->{clean_main_space}; # remember global vars set for cleaning in loop
-  $self->set_state( 'fcgi_spawn_inc', { %INC } ) if $self->{clean_inc_hash} == 2; # remember %INC to wipe out changes in loop
-  # srand if $self->{ seed_rand }; # make entropy different among forks
-  $self->{ is_prepared } = 1;
-}
-
-sub spawn {
-  my $self = shift;
-  $self->prepare unless $self->{ is_prepared };
-  my( $proc_manager, $max_requests, ) = map { $self -> {$_} } qw/proc_manager max_requests/;
-  my $req_count=0;
-  $self->cgi_reset_globals;
-  while( $$self{ acceptor }->() ) {
-    $proc_manager->pm_pre_dispatch();
-    my $sn = $ENV{SCRIPT_FILENAME};
-    my ( $bn, $dn ) = fileparse $sn;
-    chdir( $dn ) or die $!;
-    $self->prespawn_dispatch( $sn );
-    $self->callout( $sn, $fcgi );
-    $req_count ++;
-    CORE::exit if $req_count > $max_requests;
+    my $self = shift;
+    $self->_callout(@_);
     $self->postspawn_dispatch;
-    $proc_manager->pm_post_dispatch();
-    undef( $fcgi ) if $use_cgi_fast; # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
-  }
 }
-sub get_inc_stats{
-  my $stat_src = shift;
-  my %inc_state = ();
-  my $fns = [ defined( $stat_src ) ? keys( %$stat_src ) :  values %INC ];
-  foreach my $src_file ( @$fns ){
-    next unless defined( $src_file ) and -f $src_file;
-    my $stat = [ stat $src_file ];
-    $inc_state{ $src_file } = $stat;
-  }
-  return \%inc_state;
+
+# Object method
+# Cleans out particular namespace to be reloaded on every callout
+# particularly useful to reload an application config like Bugzilla::Config
+# Takes: n/a
+# Depends: on 'clean_inc_subnamespace' attribute
+# Changes: corresponding symbol table(s)
+# Returns: n/a
+sub clean_inc_particular {
+    my $self = shift;
+    map {
+        my $subnamespace_to_clean = $_;
+        map { $self->{ 'reloader' }->( $INC{ $_ } ); } grep {
+            $subnamespace_to_clean eq substr $_, 0,
+                length $subnamespace_to_clean
+            }
+            keys %INC
+    } @{ $self->{ 'clean_inc_subnamespace' } };
 }
+
+# Object method
+# Runs several processes by mean of fork() system call
+# optionally saves the state(s) to be restored on every callout
+# Takes: n/a
+# Depends: on 'clean_main_space' and 'clean_inc_hash' attributes
+# Changes: states for main:: namespace and an %INC, also $PID
+# and 'is_prepared' property
+# Returns: n/a
+sub prepare {
+    my $self         = shift;
+
+    # fork is done here
+    my $proc_manager = $self->{ 'proc_manager' };
+    $proc_manager->pm_manage();
+
+    # remember global vars set for cleaning in loop
+    if( $self->{ 'clean_main_space' } ) {
+        $self->set_state( 'fcgi_spawn_main', { %main:: } );
+    }
+
+    # remember %INC to wipe out changes in loop
+    if( $self->{ 'clean_inc_hash' } == 2 ) {
+        $self->set_state( 'fcgi_spawn_inc', { %INC } );
+    }
+
+    $$self{ 'is_prepared' } = 1;
+}
+
+# Object method
+# Runs main accept-callout loop with preparation(s)
+# and morning-after(s) for a next callout
+# Takes: n/a
+# Depends: on properties 'is_prepared', 'proc_manager', 'max_requests',
+# package's $use_cgi_fast and  environment's SCRIPT_FILENAME 
+# Changes: package's $fcgi and things according to callout and its arounds
+# Returns: n/a
+sub spawn {
+    my $self = shift;
+    $self->prepare unless $$self{ 'is_prepared' };
+    my $proc_manager = $self->{ 'proc_manager' };
+    my $max_requests = $self->{ 'max_requests' };
+    my $req_count = 0;
+    $self->cgi_reset_globals;
+    while ( $$self{ 'acceptor' }() ) {
+        $proc_manager->pm_pre_dispatch();
+        my $sn = $ENV{ 'SCRIPT_FILENAME' };
+        my $dn = dirname $sn;
+        die("Chdir $dn:  $!") unless chdir $dn;
+        $self->prespawn_dispatch($sn);
+        $self->callout($sn);
+        $req_count++;
+        CORE::exit if $req_count > $max_requests;
+        $proc_manager->pm_post_dispatch();
+        # CGI->new is likely to happen on CGI::Fast->new when CGI.pm is patched
+    }
+}
+
+# Object method
+# Gets stats of the files in the hash
+# files are keys of the hash if supplied as a parameter
+# which is used for 'x_stats' feature
+# or the values of the %INC for 'stats' feature
+# Takes: optional hash reference to view for files names in keys
+# Depends on: %INC values if no parameter is supplied
+# Returns: HashRef as filename => its stat() in ArrayRef
+sub get_inc_stats {
+    my $stat_src  = shift;
+    my %inc_state = ();
+    my $fns = [ defined($stat_src) ? keys(%$stat_src) : values %INC ];
+    foreach my $src_file (@$fns) {
+        next unless defined($src_file) and -f $src_file;
+        my $stat = [ stat $src_file ];
+        $inc_state{ $src_file } = $stat;
+    }
+    return \%inc_state;
+}
+
+# Object method
+# Sets 'stats' as an object's state
+# Takes: optional prefix to make different state name for different stats.
+# Only 'x' is used by now. And optional stats hash to be saved as an object
+# state.
+# Changes: state attribute according to prefix and hash to lookup for in
+# get_inc_stats(). Or 'stats' state and/or %INC hash, if no prefix and/or hash
+# is supplied.
+# Returns; n/a
 sub set_state_stats {
-  my( $self, $pref, $stat_src ) = @_;
-  my $stats_name = 'stats';
-  $stats_name = $pref."_$stats_name" if defined $pref;
-  my $stats = get_inc_stats $stat_src;
-  $self->set_state( $stats_name, $stats );
+    my ( $self, $pref, $stat_src ) = @_;
+    my $stats_name = 'stats';
+    $stats_name = $pref . "_$stats_name" if defined $pref;
+    my $stats = get_inc_stats( $stat_src );
+    $self->set_state( $stats_name, $stats );
 }
-sub delete_inc_by_value{
-  shift;
-  my $module = shift;
-  my @keys_arr = keys %INC;
-  foreach my $key ( @keys_arr ){
-    my $value = $INC{ $key };
-    delete $INC{ $key } if $value eq $module;
-  }
-}
-sub reload_symtable_by_module{
-  my $self = shift;
-  my $module = shift;
-  my @keys_arr = keys %INC;
-  foreach my $key ( @keys_arr ){
-    my $value = $INC{ $key };
-    if( $value eq $module ){
-      my $ns = $key;
-      $ns =~ s/\.p[ml]$//g;
-      $ns = [ split /\//, $ns ];
-      if( @$ns > 0 ){
-        #unshift @$ns, 'main';
-        foreach( @$ns ){ s/$/::/g; };
-        my $symtab = \%main::;
-        my $symtab_container = \%main::;
-        my $symtab_key = $ns->[ 0 ];
-        foreach( @$ns ){
-          if( defined $symtab->{ $_ } ){
-            $symtab_key = $_;
-            $symtab_container = $symtab;
-            $symtab = $symtab->{ $_ };
-          } else {
-            last;
-          }
+
+# Object method
+# Reloads particular module
+# Takes: module name
+# Depends: on 'reload_failover' attribute
+# Changes: %INC with reloaded module
+# Returns: n/a
+sub reload_symtable_by_module {
+    my $self     = shift;
+    my $module   = shift;
+    my @keys_arr = keys %INC;
+    foreach my $key (@keys_arr) {
+        my $value = $INC{ $key };
+        if ( $value eq $module ) {
+            my $ns = $key;
+            $ns =~ s/\.p[ml]$//g;
+            $ns = [ split /\//, $ns ];
+            if ( @$ns > 0 ) {
+
+                #unshift @$ns, 'main';
+                foreach (@$ns) { s/$/::/g; }
+                my $symtab           = \%main::;
+                my $symtab_container = \%main::;
+                my $symtab_key       = $ns->[0];
+                foreach (@$ns) {
+                    if ( defined $symtab->{ $_ } ) {
+                        $symtab_key       = $_;
+                        $symtab_container = $symtab;
+                        $symtab           = $symtab->{ $_ };
+                    }
+                    else {
+                        last;
+                    }
+                }
+                my $rv = eval {
+                    delete $INC{ $key };
+                    require $module;
+                    1;
+                };
+                unless ($rv) {
+                    if ( $self->{ 'reload_failover' } ) {
+                        $INC{ $key } = $value;
+                    }
+                    else {
+                        undef $symtab_container->{ $symtab_key };
+                        delete $symtab_container->{ $symtab_key };
+                    }
+                }
+            }
         }
-        my $rv = eval{ delete $INC{ $key }; require $module;
-        1; };
-        unless( $rv ){
-          if( $self->{ reload_failover } ){
-            $INC{ $key } = $value;
-          } else {
-            #$symtab_container->{ $symtab_key } = $symtab;
-            undef $symtab_container->{ $symtab_key };
-            delete $symtab_container->{ $symtab_key };
-          }
-        }
-      }
     }
-  }
 }
-sub cgi_reset_globals{
-  my $self = shift;
-  if( ( $self->{ use_cgi } >=0 )
+
+# Object method
+# Resets global variables influencing the CGI input
+# Takes: n/a
+# Depends: on 'use_cgi', 'acceptor', 'cgi_fast', 'mod_perl' attributes, and if
+# CGI.pm is loaded on the %INC
+# Changes: global variables, mostrly in CGI* package(s).
+# Throws: if CGI.pm can not reset globals
+# Returns: n/a
+sub cgi_reset_globals {
+    my $self = shift;
+    if (    ( $self->{ 'use_cgi' } >= 0 )
         and defined( $INC{ 'CGI.pm' } )
-        and ( $self->{ acceptor } ne 'cgi_fast' ) # CGI::Fast resets by itself
-        and not $self->{ mod_perl }   # Apache::Fake resets by its handler
-    ){
-      CGI->_reset_globals  or die $!; # to get rid of CGI::save_request consequences
-  }
+        and
+        ( $self->{ 'acceptor' } ne 'cgi_fast' ) # CGI::Fast resets by itself
+        and not $self->{ 'mod_perl' }   # Apache::Fake resets by its handler
+        )
+    {
+        # to get rid of CGI::save_request consequences
+        die( $! ) unless CGI->_reset_globals;
+    }
+    if( $use_cgi_fast ){ undef $fcgi };
 }
-sub modperl_reset{
-  my $self = shift;
-  my $handlers = Apache->request->{ HANDLERS }->{ PerlCleanupHandler };
-  foreach my $handler ( @$handlers ){
-     $handler->( Apache->request ) if defined $handler;
-  }
-  Apache->cleanup_request;
-  Apache->request->{ HANDLERS } = $self->{ saved_handlers };
+
+# Object method
+# Performs mod_perl cleanup handlers and a mod_perl internal cleanup request
+# Restores mod_perl handlers saved previously in ->save_handlers()
+# Takes: n/a
+# Depends: on 'handlers' saved state
+# Changes: mod_perl's 'HANDLERS' attribute
+# Returns: n/a
+sub modperl_reset {
+    my $self     = shift;
+    my $handlers = Apache->request->{ 'HANDLERS' }->{ 'PerlCleanupHandler' };
+    foreach my $handler (@$handlers) {
+        if ( defined $handler ) { $handler->(Apache->request) }
+    }
+    Apache->cleanup_request;
+    Apache->request->{ 'HANDLERS' } = $self->get_state('handlers');
 }
-sub postspawn_dispatch{
-  my $self = shift;
-  $self->ipc_pid_delete;
-  $self->set_state_stats if $self->{ stats }; # remember %INC to wipe out changes in loop
-  $self->set_state_stats( 'x', \%xinc ) if $self->{ x_stats }; # remember %xinc to wipe out changes in loop
-  $self->modperl_reset if $self->{ mod_perl };
-  $self->cgi_reset_globals;
+
+# Object method
+# Performs actions after callout: takes off timeout from process id, sets new
+# stat() result for perl files and templates ( x_stats ), resets mod_perl
+# and CGI values from last call
+# Takes: n/a
+# Depends: on 'stats', 'x_stats' and 'mod_perl' attributes
+# Returns: n/a
+sub postspawn_dispatch {
+    my $self = shift;
+    $self->ipc_pid_delete;
+    # remember %INC to wipe out changes in loop
+    if( $self->{ 'stats' } ) { $self->set_state_stats }
+    # remember %xinc to wipe out changes in loop
+    if ( $self->{ 'x_stats' } ) { $self->set_state_stats( 'x' => \%xinc, ) }
+    if ( $self->{ 'mod_perl' } ) { $self->modperl_reset }
+    $self->cgi_reset_globals;
 }
+
+# Object method
+# Performs actions before callout for a particular script name: cleans %INC
+# and its analogue for x_stats, main namespace and sets process id for a
+# timeout
+# Takes: script file name
+# Depends: on saved states 'fcgi_spawn_inc', fcgi_spawn_main' and attributes
+# 'clean_inc_hash', 'fcgi_spawn_inc', 'stats', 'x_stats', 'clean_main_space'
+# Changes: %INC, %main::
+# Returns: n/a
 sub prespawn_dispatch {
-  my ( $self, $sn ) = @_;
-  delete $INC{ $sn } if exists( $INC{ $sn } ) and $self->{clean_inc_hash} == 1 ; #make %INC to forget about the script included
-  #map { delete $INC{ $_ } if not exists $fcgi_spawn_inc{ $_ } } keys %INC
-  if( $self->{clean_inc_hash} == 2 ){ #if %INC change is unwanted at all
-    my $fcgi_spawn_inc = $self->get_state( 'fcgi_spawn_inc' );
-    %INC = %$fcgi_spawn_inc ;
-  }
-  $self->clean_inc_particular;
-  $self->clean_inc_modified( $sn ) if $self->{ stats };
-  $self->clean_xinc_modified if $self->{ x_stats };
-  if( $self->{clean_main_space} ){ # actual cleaning vars
-    foreach ( keys %main:: ){
-      unless( $self->defined_state( 'fcgi_spawn_main', $_ ) ){
-        undef $main::{ $_ }; delete $main::{ $_ };
-      }
+    my ( $self, $sn ) = @_;
+    if( $self->{ 'clean_inc_hash' } == 1 ) {
+        # make %INC to forget about the script included
+        if( defined $INC{ $sn } ) { delete $INC{ $sn } }
     }
-  }
-  $self->ipc_pid_insert;
+    elsif ( $self->{ 'clean_inc_hash' } == 2 ) {
+        # if %INC change is unwanted at all
+        my $fcgi_spawn_inc = $self->get_state('fcgi_spawn_inc');
+        %INC = %$fcgi_spawn_inc;
+    }
+    $self->clean_inc_particular;
+    if( $self->{ 'stats' } ) { $self->clean_inc_modified($sn) }
+    if( $self->{ 'x_stats' } ) { $self->clean_xinc_modified; }
+    if ( $self->{ 'clean_main_space' } ) {    # actual cleaning vars
+        foreach my $key ( keys %main:: ) {
+            unless ( $self->defined_state( 'fcgi_spawn_main' => $key, ) ) {
+                undef $main::{ $key };
+                delete $main::{ $key };
+            }
+        }
+    }
+    $self->ipc_pid_insert;
+    # for cleanups assigned on preload
+    if ( $$self{ 'mod_perl' } ) { $self -> save_handlers; }
 }
-sub ipc_pid_insert{
-  my $self = shift;
-  if( $self->{ time_limit } ){
-    my $pid_callouts = $self->{ pid_callouts };
-    $pid_callouts->{ $$ } = time;
-  }
+
+# Object method
+# Adds pid to an IPC shared hash for 'time_limit' feature
+# Takes: n/a
+# Depends: on 'time_limit' attribute
+# Changes: 'pid_callouts' attribute
+# Returns: n/a
+sub ipc_pid_insert {
+    my $self = shift;
+    if ( $self->{ 'time_limit' } ) {
+        my $pid_callouts = $$self{ 'pid_callouts' };
+        $$pid_callouts{ $$ } = time;
+    }
 }
-sub ipc_pid_delete{
-  my $self = shift;
-  if( $self->{ time_limit } ){
-    my $pid_callouts = $self->{ pid_callouts };
-    delete $pid_callouts->{ $$ };
-  }
+
+# Object method
+# Removes pid from an IPC shared hash for 'time_limit' feature
+# Takes: n/a
+# Depends: on 'time_limit' attribute
+# Changes: 'pid_callouts' attribute
+# Returns: n/a
+sub ipc_pid_delete {
+    my $self = shift;
+    if ( $self->{ 'time_limit' } ) {
+        my $pid_callouts = $self->{ 'pid_callouts' };
+        delete $pid_callouts->{ $$ };
+    }
 }
+
+# Function
+# Puts the dependent files in a file names hash for 'x_stats' feature
+# Takes: non-empty ArrayRef(Str] of file names , the 0th file is a dependence
+# for the foillowing like 'index.tmpl' and the rest is 'header.tmpl',
+# 'footer.tmpl', 'body.tmpl', etc.
+# Chenges: package variable %xinc
+# Returns: n/a
 sub xinc_dependent {
-  my $fn = shift;
-  for( my $i = 1; $i < scalar @$fn; $i ++ ){
-    my $arr_fn = $fn->[ $i ];
-    if( defined( $xinc{ $arr_fn } ) ){
-      if( 'ARRAY' eq ref $xinc{ $arr_fn } ){
-        push( @{ $xinc{ $arr_fn } },  $fn->[ 0 ] ) unless grep { $_ eq $fn->[ 0 ] } @{ $xinc{ $arr_fn } };
-      } else {
-        die "xinc: dependence $arr_fn is previously defined";
-      }
-    } else {
-      $xinc{ $arr_fn } = [ $fn->[ 0 ] ];
+    my $fn = shift;
+    # Starts from 1
+    for( my $i = 1; $i < scalar @$fn; $i ++ ){
+        my $arr_fn = $fn->[ $i ];
+        if ( defined $xinc{ $arr_fn } ) {
+            if ( 'ARRAY' eq ref $xinc{ $arr_fn } ) {
+                unless( grep { $_ eq $$fn[0] } @{ $xinc{ $arr_fn } } ) {
+                    push @{ $xinc{ $arr_fn } } => $$fn[0];
+                }
+            }
+            else { die "xinc: dependence $arr_fn is previously defined";
+            }
+        }
+        else { $xinc{ $arr_fn } = [ $$fn[0] ];
+        }
     }
-  }
 }
+
+# Function
+# Caches result of a file parsing like a template object
+# For use in an application(s) that keeps template(s), configuration(s) or
+# other behaviorial ( but not-perl ) data in a files.
+# Takes: file name or ArrayRef[Str] of file names, and a code reference that
+# takes it as a parameter(s).
+# Changes: package variable %xinc
+# Returns: cached result value of a code reference called with such a
+# parameter(s)
 sub xinc {
-  my( $fn, $cref ) = @_;
-  my $rv = undef;
-  if( defined( $fn ) and defined( $cref ) and 'CODE' eq ref $cref ){
-    my $fref = ref $fn;
-    if( $fref eq '' ){ # $fn is a scalar, the file name
-      if( defined $xinc{ $fn }  ){
-        $rv = $xinc{ $fn };
-      } else {
-        $rv = $cref->( $fn );
-        $xinc{ $fn } = $rv;
-      }
-    } elsif( ( $fref eq 'ARRAY' ) and scalar @$fn ){ # $fn is a list of the filenames
-      if( defined $xinc{ $fn->[ 0 ] } ){
-        $rv = $xinc{ $fn->[ 0 ] };
-      } else {
-        $rv = $cref->( @$fn );
-        $xinc{ $fn->[ 0 ] } = $rv;
-      }
-      if( scalar @$fn > 1 ){ # dependent files names
-        &xinc_dependent( $fn );
-      }
+    my ( $fn => $cref, ) = @_;
+    my $rv = undef;
+    if ( defined($fn) and defined($cref) and 'CODE' eq ref $cref ) {
+        my $fref = ref $fn;
+        if ( $fref eq '' ) {    # $fn is a scalar, the file name
+            if ( defined $xinc{ $fn } ) {
+                $rv = $xinc{ $fn };
+            }
+            else {
+                $rv = $cref->($fn);
+                $xinc{ $fn } = $rv;
+            }
+        }
+        elsif ( ( $fref eq 'ARRAY' ) and @$fn > 0 ) {                       
+            # $fn is a list of the filenames
+            if ( defined $xinc{ $$fn[0] } ) {
+                $rv = $xinc{ $$fn[0] };
+            }
+            else {
+                $rv = $cref->(@$fn);
+                $xinc{ $$fn[0] } = $rv;
+            }
+            # dependent files names
+            if ( @$fn > 1 ) { &xinc_dependent($fn) }
+        }
     }
-  }
-  return $rv;
+    return $rv;
 }
 
+# Object method
+# Removes modified files from cache of templates to be re-read and parsed
+# and/or executed anew on the next call of xinc() function in application(s)
+# Takes: n/a
+# Depends: on saved state 'x_stats', attribute 'x_stats_policy', ArrayRef(s)
+# contained as a values in a cache, the package variable %xinc
+# Changes: package variable %xinc
+# Returns: n/a
 sub clean_xinc_modified {
-  my $self = shift;
-  my $old_stats = $self->get_state( 'x_stats' );
-  my $new_stats = get_inc_stats \%xinc;
-  my $policy = $self->{ x_stats_policy };
-  foreach my $item ( keys %$new_stats ){
-    my $modified = 0;
-    if( defined $old_stats->{ $item } ){
-      my $new_stat = $new_stats->{ $item };
-      my $old_stat = $old_stats->{ $item };
-      foreach my $i ( @$policy ){
-        unless(
-          defined( $new_stat->[ $i ] )
-            and
-          defined( $old_stat->[ $i ] )
-        ){
-          $modified = 1; last;
+    my $self      = shift;
+    my $old_stats = $self->get_state('x_stats');
+    my $new_stats = get_inc_stats( \%xinc );
+    my $policy    = $$self{ 'x_stats_policy' };
+    foreach my $item ( keys %$new_stats ) {
+        my $modified = 0;
+        if ( defined $old_stats->{ $item } ) {
+            my $new_stat = $new_stats->{ $item };
+            my $old_stat = $old_stats->{ $item };
+            foreach my $i (@$policy) {
+                my $elem_chng = not(defined($$new_stat[$i])
+                    and defined($$old_stat[$i])
+                );
+                unless( $elem_chng ){
+                    my $new_element = $$new_stat[$i];
+                    my $old_element = $$old_stat[$i];
+                    $elem_chng = ( $new_element != $old_element );
+                }
+                if ( $elem_chng ) { $modified = 1 }
+                last if $elem_chng;
+            }
         }
-        my $new_element = $new_stat->[ $i ];
-        my $old_element = $old_stat->[ $i ];
-        unless(  $new_element == $old_element ){
-          $modified = 1; last;
+        else { $modified = 1;
         }
-      }
-    } else {
-      $modified = 1;
+        if ($modified) { delete_xinc_item( $item ) }
     }
-    if( $modified ){
-      if( 'ARRAY' eq ref $xinc{ $item } ){
-        map{
-          delete( $xinc{ $_ } ) if defined $xinc{ $_ } ;
-        } @{ $xinc{ $item } };
-      }
-      delete $xinc{ $item } ;
-    }
-  }
 }
 
-sub clean_inc_modified {
-  my( $self, $sn ) = @_;
-  my $old_stats = $self->get_state( 'stats' );
-  my $new_stats = get_inc_stats;
-  my $policy = $self->{ stats_policy };
-  foreach my $module ( keys %$new_stats ){
-    my $modified = 0;
-    if( defined $old_stats->{ $module } ){
-      my $new_stat = $new_stats->{ $module };
-      my $old_stat = $old_stats->{ $module };
-      foreach my $i ( @$policy ){
-        unless(
-          defined( $new_stat->[ $i ] )
-            and
-          defined( $old_stat->[ $i ] )
-        ){
-          $modified = 1; last;
+# Function
+# Deletes an item from templates, (configs, etc.) cache top be re-read on the
+# next xinc() call from the application(s) with recursion on dependence(s)
+# Takes: item, scalar key of the cache
+# Depends: on package variable %xinc
+# Changes: package variable %xinc
+# Returns: n/a
+sub delete_xinc_item {
+    my $item = shift;
+    if( defined $xinc{ $item } ) {
+        my $value = $xinc{ $item };
+        if ( 'ARRAY' eq ref $value ) {
+            foreach my $inner( @$value ){ delete_xinc_item($inner) }
         }
-        my $new_element = $new_stat->[ $i ];
-        my $old_element = $old_stat->[ $i ];
-        unless(  $new_element == $old_element ){
-          $modified = 1; last;
-        }
-      }
+        delete $xinc{ $item };
     }
-    # if( $modified and $module =~ m/Mod.pm$/ ) { print STDERR $module; }
-    $self->{ reloader }->( $module ) if $modified and ( $module ne $sn );
-  }
 }
-sub defined_state{
-  my( $self, $key ) = @_;
-  defined $self->{ state }->{ $key };
+
+# Object method
+# Reloads modified modules, by mean of %INC by default
+# Takes: script file name to be executed
+# Depends: on saved state 'stats', results of stat() of the files loaded in
+# %INC, attributes 'stats_policy' and 'reloader'
+# Returns: n/a
+sub clean_inc_modified {
+    my ( $self, $sn ) = @_;
+    my $old_stats = $self->get_state('stats');
+    my $new_stats = get_inc_stats;
+    my $policy    = $$self{ 'stats_policy' };
+    foreach my $module ( keys %$new_stats ) {
+        my $modified = 0;
+        if ( defined $old_stats->{ $module } ) {
+            my $new_stat = $new_stats->{ $module };
+            my $old_stat = $old_stats->{ $module };
+            foreach my $i (@$policy) {
+                my $elem_chng = not(defined($$new_stat[$i])
+                    and defined $$old_stat[$i]
+                );
+                unless( $elem_chng ) {
+                    my $new_element = $new_stat->[$i];
+                    my $old_element = $old_stat->[$i];
+                    $elem_chng = ( $new_element != $old_element );
+                }
+                if( $elem_chng ){ $modified = 1 }
+                last if $elem_chng;
+            }
+        }
+        if( $modified and ( $module ne $sn ) ) { $$self{ 'reloader' }($module)
+        }
+    }
 }
-sub get_state {
-  my( $self, $key ) = @_;
-  $self->{ state }->{ $key };
+
+# Object method
+# Gets definity of a saved state
+# Takes: key to check if saved state was defined
+# Returns: if saved state was defined
+sub defined_state {
+    my ( $self, $key ) = @_;
+    defined $$self{ 'state' }{ $key };
 }
+
+# Object method
+# Gets a saved state
+# Takes: key of saved state
+# Returns: saved state
+sub get_state { my ( $self, $key ) = @_; $$self{ 'state' }{ $key }; }
+
+# Object method
+# Sets a saved state
+# Takes: key of a state to save
+# Returns: n/a
 sub set_state {
-  my( $self, $key, $val ) = @_;
-  $self->{ state }->{ $key } = $val;
+    my ( $self, $key => $val ) = @_;
+    $$self{ 'state' }{ $key } = $val;
 }
 
 # Static method
@@ -997,6 +1239,6 @@ sub set_state {
 # without setting spawn's callout attribute to reference with an eval() inside
 # Takes: nothing
 # Returns: $fcgi
-sub fcgi{ return $fcgi; }
+sub fcgi { return $fcgi }
 
 1;

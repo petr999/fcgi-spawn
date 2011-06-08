@@ -365,7 +365,7 @@ setsid or croak "Setting session: $!";
 
 my $preloaders = { nonprepared => [], prepared => [], };
 if( $preload ){
-  FCGI::Spawn::ModPerl->new if $spawn->{ mod_perl };
+  Apache::Fake->new if $spawn->{ mod_perl };
   opendir( my $preloaders_dh, $config_path ) or croak "Opening path $config_path: $!";
   while( my $fn = readdir $preloaders_dh ){
     next if grep { $_ eq $fn } qw/. ../;

@@ -216,6 +216,7 @@ use warnings;
 use base 'Apache';
 
 use CGI qw(-private_tempfiles);
+use Sub::Alias;
 
 our $VERSION = '2.10';
 
@@ -241,7 +242,7 @@ sub new{
   # $SUPER::new copy end
 }
 
-*instance = \&new;
+alias('instance' => 'new');
 
 sub parse{}
 
@@ -264,6 +265,8 @@ package Apache::Upload;
 use strict;
 use warnings;
 
+use Sub::Alias;
+
 sub new{
   my( $caller, $q, $name, $next, ) = @_;
   my $class = ref( $caller ) || $caller;
@@ -277,7 +280,7 @@ sub filename{
   $$self{ 'CGI' } -> param( $$self{ 'NAME' }, );
 }
 
-*fh = \&filename;
+alias('fh' => 'filename');
 
 sub size{ ( $_[ 0 ] -> fh -> stat )[ 7 ]; }
 
@@ -503,7 +506,7 @@ use warnings;
 use HTTP::Date qw/str2time/;
 
 sub parse_http{
-  return 1000000 * str2time shift;
+  return 1_000_000 * str2time shift;
 }
 
 package APR::Request;
@@ -511,6 +514,8 @@ use strict;
 use warnings;
 
 use base qw/Apache2::Request/;
+
+use Sub::Alias;
 
 sub jar{
   my $cookies = Apache2::Cookie->new->fetch;
@@ -521,7 +526,8 @@ sub jar{
   };
   return $rv;
 }
-*param = \&Apache::param;
+
+alias('param' => 'Apache::param');
 
 package APR::Request::Apache2;
 use strict;
@@ -546,6 +552,7 @@ use warnings;
 use HTTP::Status qw/status_message/;
 use CGI::Carp qw(fatalsToBrowser);
 use IO::Handle;
+use Sub::Alias;
 
 use Apache::Constants;
 
@@ -939,7 +946,7 @@ sub hard_timeout{
 sub kill_timeout{ alarm( 0 ); }
 sub reset_timeout{ alarm( 120 ); }
 
-sub after_connection {
+sub cleanup_register {
   my ($self, $code) = @_;
   unless( grep{ $code eq $_ }
       @{ $$self{ 'HANDLERS' }{ 'PerlCleanupHandler' } }
@@ -947,8 +954,7 @@ sub after_connection {
   }
 }
 
-*register_cleanup = \&after_connection;
-*cleanup_register = \&after_connection;
+alias('register_cleanup' => 'cleanup_register');
 
 sub send_cgi_header{
   my( $self => $lines, ) = @_;

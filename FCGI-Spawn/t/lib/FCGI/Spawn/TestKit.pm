@@ -51,6 +51,10 @@ const( my $kits => {
     qw/time_limit_term_ignore time_limit_kill time_limit_parallel
       time_limit_kill_parallel/,
   ], }, },
+  'mod_perl_handlers' => { qw/extends spawnable/,
+    'init_hash' => { 'push_tests' => [
+      # qw/basic serialize serialize_post serialize_mp2 serialize_post_mp2/,
+  ], }, },
 } );
 
 sub init_name{

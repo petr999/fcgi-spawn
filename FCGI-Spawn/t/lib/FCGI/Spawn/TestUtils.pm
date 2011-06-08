@@ -36,6 +36,7 @@ const( my $conf_presets => { 'call_out' => { 'cmd_args' => [ qw/-pl -e/, ], },
       qw/general un_clean_main stats x_stats
         log_rotate max_requests fcgi pre_load time_limit save_env/,
     ),
+    'mod_perl_handlers' => { 'cmd_args' => [ '-pl' ], },
     'chroot'        => { 'cgi_dir' => "/$etc_test/cgi",
       'cmd_args' => [ '-mmf' => "$etc_test/$mmf_basename", ],
     },
