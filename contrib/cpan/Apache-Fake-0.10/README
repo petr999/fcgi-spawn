@@ -1,0 +1,132 @@
+NAME
+    Apache::Fake - fake a mod_perl request object
+
+VERSION
+    This document refers to version 0.10 of Apache::Fake, released February
+    1, 2002.
+
+SYNOPSIS
+    Case 1: Using a CGI script as Apache SetHandler
+
+    /cgi-bin/nph-modperl-emu.cgi:
+
+        #!/usr/bin/perl
+        use lib '/some/private/lib_path';
+        use Apache::Fake;
+        new Apache::Fake('httpd_conf' => '/some/private/httpd.conf',
+            'dir_conf' => '.htaccess.emu');
+
+    In your httpd.conf or .htaccess, add something like this:
+
+        Action modperl-emu /cgi-bin/nph-modperl-emu.cgi
+        SetHandler modperl-emu
+
+    Access page just like under mod_perl. (http://host/real/page/here.html)
+
+    Case 2: Exclusively using PATH_INFO
+
+    /cgi-bin/nph-modperl-emu.cgi:
+
+            #!/usr/bin/perl
+            use lib '/some/private/lib_path';
+            use Apache::Fake;
+
+            new Apache::Fake('httpd_conf' => '/some/private/httpd.conf',
+                    'dir_conf' => '.htaccess.emu',
+                    'handler_cgi' => '/cgi-bin/nph-modperl-emu.cgi',
+                    'virtual_root' => '/some/private/document_root');
+
+    Access page like:
+    http://host/cgi-bin/nph-modperl-emu.cgi/real/page/here.html
+
+DESCRIPTION
+    This module fakes a mod_perl request object using the Common Gateway
+    Interface. Everything that works with mod_perl should work with
+    Apache::Fake as well. Apache::Fake parses apache-style config files for
+    any relevant settings. A working mod_perl configuration should work
+    without any modifications given all relevant config files are found. If
+    not, you've found a bug.
+
+    Apache::Fake currently emulates the following modules: Apache,
+    Apache::Request, Apache::Table, Apache::Log, mod_perl. Re-use-ing these
+    modules will do no harm, since Apache::Fake sets %INC for these modules.
+
+    For documentation, refer to the mod_perl documentation.
+
+    Things planned, but not yet working, are: Subrequests, other handlers
+    than PerlHandler, internal_redirect, custom_response, $r->handler().
+
+    Things that never will work are: $->get_basic_auth_pw,
+    $r->note_basic_auth_failure.
+
+CONSTRUCTOR
+    new Apache::Fake([option => value, ...])
+        The constructor will parse an apache-style config file to retrieve
+        any relevant settings, like PerlHandler and PerlSetVar. It will also
+        obey local .htaccess-style config files. You can use the 'real'
+        config files or provide your own, stripped down versions. The most
+        useful configuration is to use the 'real' httpd.conf, but fake
+        .htaccess files, so you can provide PerlSetVar and PerlHandler even
+        if the web server does not recognize these keywords.
+
+        The following settings are used:
+
+        httpd_conf => '/etc/apache/httpd.conf'
+            Path to the main config file. Default is undef, i.e. not used.
+            Neccessary for some subrequest functions.
+
+        dir_conf => '.htaccess'
+            File name of the per-directory config file. Default is
+            '.htaccess'. Only PerlSetVar, PerlModule and PerlHandler are
+            used. <Files> sections are currently ignored.
+
+            Caveat: The algorithm searching for a matching file will ascend
+            the physical path, not the logical. So it might miss some files,
+            and find additional ones. This can be considered a feature.
+
+            One of these two files is neccessary, since you need a
+            PerlHandler directive.
+
+        handler_cgi => '/cgi-bin/nph-mod_perl-handler.cgi'
+            URI of the handler script. If this parameter is given,
+            'virtual_root' must be set as well, and Apache::Fake operates in
+            PATH_INFO mode. In this mode, all URLs go like:
+            http://host/cgi-bin/nph-mod_perl-handler.cgi/real/path.
+
+        virtual_root => '/home/siteX/modperl_docs'
+            Path to the virtual root directory of your mod_perl
+            documents/scripts. This directory contains all files accessed
+            through Apache::Fake. It should not be inside your normal
+            document root.
+
+WARNING
+    This is alpha-quality software. It works for me and for some moderately
+    complex perl modules (the HTML::Mason suite). Not every aspect was
+    tested or checked for strict compatibility to mod_perl 1.27. Please
+    report any problems you find via http://rt.cpan.org.
+
+TO DO
+    * Emulate Perl*Handlers by calling them in sequence
+    * Emulate handler() by emulating some common handlers
+    * Emulate subrequests and redirects by doing our own URI->filename
+    mapping. Then PerlTransHandlers will work, too.
+    * Emulate custom_response via previous mapping
+    * Emulate internal redirects via previous mapping
+REQUIRED
+    perl 5.6.0, Apache::ConfigFile, CGI, CGI::Carp, HTTP::Status
+
+ACKNOWLEDGEMENTS
+    This module was inspired by a posting on the HTML::Mason mailing list by
+    Alexey Tourbin (alexey_tourbin@mail.ru) and Apache::Emulator by Nigel
+    Wetters (nwetters@cpan.org), both of which were very limited in
+    function. Some ideas have been borrowed from both sources.
+
+AUTHOR
+    Jörg Walter <ehrlich@ich.bin.kein.hoschi.de>.
+
+VERSION
+    0.10
+
+SEE ALSO
+    the Apache manpage, the Apache::Request manpage
+

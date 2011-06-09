@@ -53,7 +53,6 @@ const( my $kits => {
   ], }, },
   'mod_perl_handlers' => { qw/extends spawnable/,
     'init_hash' => { 'push_tests' => [
-      # qw/basic serialize serialize_post serialize_mp2 serialize_post_mp2/,
   ], }, },
 } );
 
