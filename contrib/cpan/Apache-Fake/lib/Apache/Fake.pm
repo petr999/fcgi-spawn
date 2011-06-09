@@ -1,28 +1,12 @@
-#
-#  Apache::Fake - fake a mod_perl environment
-#
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 of the License, or
-#  (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  You should have received a copy of the GNU General Public License
-#  along with this program; if not, write to the Free Software
-#  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-#
-#
+#!/usr/bin/env perl
+
 package Apache::Fake;
 use strict;
 use warnings;
 require 5.6.0;
 
 BEGIN {
-  $Apache::Fake::VERSION = 0.10;
+  our $VERSION = 0.10;
   foreach my $module( @{ [ qw% Apache2/Response Apache2/RequestRec
       Apache2/RequestUtil Apache2/RequestIO APR/Pool APR/Table
       Apache2/SizeLimit ModPerl/RegistryLoader ModPerl/Registry Apache2/Const
@@ -33,13 +17,37 @@ BEGIN {
     % ] } ){ $INC{ "$module.pm" } = $INC{ 'Apache/Fake.pm' }; }
 }
 
+=pod
+
+=head1 NAME
+
+Apache::Fake - fake a mod_perl request object
+
+=head1 LICENSE
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+=cut
+
 1;
 
 package mod_perl;
 use strict;
 use warnings;
 BEGIN {
-  $mod_perl::VERSION = 1.27;
+  our $VERSION = 1.27;
 }
 
 package Apache::Log;
@@ -1045,11 +1053,7 @@ sub import{
   }
 }
 
-#-----------------------------------------------------------------------
-
-=head1 NAME
-
-Apache::Fake - fake a mod_perl request object
+=pod
 
 =head1 VERSION
 
