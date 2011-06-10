@@ -1,0 +1,38 @@
+---
+abstract: 'fake a mod_perl request object'
+author:
+  - 'Jörg Walter <ehrlich@ich.bin.kein.hoschi.de>.'
+build_requires:
+  ExtUtils::MakeMaker: 6.42
+  IPC::Open3: 0
+  JSON: 0
+  Perl6::Export::Attrs: 0
+  Test::More: 0
+configure_requires:
+  ExtUtils::MakeMaker: 6.42
+distribution_type: module
+generated_by: 'Module::Install version 1.01'
+license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Apache-Fake
+no_index:
+  directory:
+    - inc
+    - t
+recommends:
+  JSON::XS: 0
+requires:
+  CGI: 0
+  CGI::Cookie: 0
+  Carp: 0
+  HTTP::Date: 0
+  HTTP::Status: 0
+  IO::Handle: 0
+  Sub::Alias: 0
+  Sub::Name: 0
+  perl: 5.6.0
+resources:
+  license: http://opensource.org/licenses/gpl-license.php
+version: 0.10

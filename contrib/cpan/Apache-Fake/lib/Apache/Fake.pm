@@ -257,23 +257,7 @@ sub new {
     my ( $caller, $r, %options, ) = @_;
     my $class = ref($caller) || $caller;
     return Apache->request if ref( Apache->request ) eq $class;
-    $CGI::POST_MAX        = $options{ 'POST_MAX' }        || 0;
-    $CGI::DISABLE_UPLOADS = $options{ 'DISABLE_UPLOADS' } || 0;
-    if ( $options{ 'UPLOAD_HOOK' } ) {
-        $r->warn('Upload hooks not implemented');
-    }
-    if ( $options{ 'TEMP_DIR' } ) {
-        $ENV{ 'TMPDIR' } = $options{ 'TEMP_DIR' };
-    }
-    $CGI::MOD_PERL = 0;
-    CGI->_reset_globals;
-    my $q = $$r{ 'CGI' } = CGI->new;
-    $CGI::MOD_PERL = $cgi_mod_perl;
-    $$r{ 'UPLOADS' } = {
-        map { $_ => undef }
-            grep { my $x; $x = $q->param($_) && ref($x) && fileno($x) }
-            $q->param
-    };
+
     $r = bless( $r => $class, );
     Apache->request($r);
     map { $r->{ $_ } = {}; } qw/NOTES PNOTES/;
@@ -474,7 +458,7 @@ use strict;
 use warnings;
 use base qw/Apache::Request Apache::Connection/;
 
-sub request { $_[1] = Apache->request; (shift)->new(@_); }
+sub request { $_[1] = Apache->request; (shift)->new(@_) }
 
 package APR::Table;
 use strict;
@@ -579,7 +563,7 @@ use warnings;
 use HTTP::Date qw/str2time/;
 
 sub parse_http {
-    return 1_000_000 * str2time shift;
+    return 1_000_000 * str2time(shift);
 }
 
 package APR::Request;
@@ -619,9 +603,9 @@ use strict;
 use warnings;
 
 use HTTP::Status qw/status_message/;
-use CGI::Carp qw/fatalsToBrowser/;
 use IO::Handle;
 use Sub::Alias;
+use Sub::Name;
 
 use Apache::Constants;
 
@@ -782,13 +766,20 @@ sub content {
 
 sub read {
     my ( $self, $buf, $cnt, $off, ) = @_;
-    my $content = '';
+
+    # From CGI.pm the buffer value is passed by dereference into this sub
+    $buf = \$_[1];
+
     $off ||= 0;
     $self->soft_timeout('read timed out');
+
+    # While $ENV{ 'CONTENT_LENGTH' } bytes is not yet read
     while ( $cnt > 0 ) {
-        my $len = read( STDIN, $cnt, $off + length($buf), );
-        $$self{ 'ABORTED' } = 1, die 'read error' if $len <= 0;
-        $cnt -= $len;    # FIXME: is this neccesary?
+        my $len = read( STDIN, $$buf, $cnt, $off + length($buf), );
+        if ( $len <= 0 ) { $$self{ 'ABORTED' } = 1 }
+        use Carp;
+        croak( 'read error' . " $len bytes of $cnt ($buf)" ) if $len <= 0;
+        $cnt -= $len;
     }
 }
 
@@ -1317,7 +1308,7 @@ PerlTransHandlers will work, too.
 
 =head1 REQUIRED
 
-perl 5.6.0, Apache::ConfigFile, CGI, CGI::Carp, HTTP::Status
+perl 5.6.0, Apache::ConfigFile, CGI, HTTP::Status
 
 =head1 ACKNOWLEDGEMENTS
 
