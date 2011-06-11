@@ -5,7 +5,7 @@ use MooseX::FollowPBP;
 
 extends( 'FCGI::Spawn::Tests::Fixed', );
 
-has( '+descr' => ( 'default' => 'Basic CGI', ), );
+has( '+descr' => ( 'default' => 'Basic CGI with CGI::Fast', ), );
 has( '+is_response_json' => ( qw/default 0/, ), );
 
 __PACKAGE__->meta->make_immutable;

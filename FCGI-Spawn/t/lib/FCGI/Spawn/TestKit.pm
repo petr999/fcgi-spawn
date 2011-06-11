@@ -25,7 +25,7 @@ const( my $kits => {
   ], }, },
   'cgi_fast_mod_perl' => { qw/extends spawnable/,
     'init_hash' => { qw/self_skip 1 push_tests/ => [
-      qw/basic serialize serialize_cf/,
+      qw/basic_cf serialize serialize_cf/,
   ], }, },
   'mod_perl' => { qw/extends spawnable/,
     'init_hash' => { qw/self_skip 1 push_tests/ => [

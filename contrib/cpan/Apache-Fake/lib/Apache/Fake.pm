@@ -602,6 +602,8 @@ package Apache;
 use strict;
 use warnings;
 
+use Carp;
+
 use HTTP::Status qw/status_message/;
 use IO::Handle;
 use Sub::Alias;
@@ -775,9 +777,8 @@ sub read {
 
     # While $ENV{ 'CONTENT_LENGTH' } bytes is not yet read
     while ( $cnt > 0 ) {
-        my $len = read( STDIN, $$buf, $cnt, $off + length($buf), );
+        my $len = read( STDIN, $$buf, $cnt, $off + length $$buf );
         if ( $len <= 0 ) { $$self{ 'ABORTED' } = 1 }
-        use Carp;
         croak( 'read error' . " $len bytes of $cnt ($buf)" ) if $len <= 0;
         $cnt -= $len;
     }

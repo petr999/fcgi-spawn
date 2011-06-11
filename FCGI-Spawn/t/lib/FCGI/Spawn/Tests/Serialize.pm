@@ -30,9 +30,9 @@ sub make_test_seq{
 sub init_test_var{
   my $self = shift;
   my $rand_max = $self -> get_rand_max;
-  my $seed = rand( $rand_max );
-  my $b64_seed = md5_base64 rand( $rand_max );
-  my $seeding = { $b64_seed => $seed, };
+  my $b64_key = md5_base64( rand $rand_max );
+  my $b64_val = md5_base64( rand $rand_max );
+  my $seeding = { $b64_key => $b64_val, };
   return $seeding;
 }
 
