@@ -1,4 +1,4 @@
-# -*- perl -*-
+#!/usr/bin/env perl
 # Copyright (c) 2010,2011 Peter Vereshagin <peter@vereshagin.org>
 # This library is free software released "AS IS WITH ALL FAULTS"
 # and WITHOUT ANY WARRANTIES under the terms of the GNU Lesser

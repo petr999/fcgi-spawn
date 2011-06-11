@@ -1,3 +1,4 @@
+#!/usr/bin/env perl
 use strict;
 
-$$FCGI::Spawn::OURS{ 'TEST_VAR_00'} = 'ITISTEST';
+$$FCGI::Spawn::OURS{ 'TEST_VAR_00' } = 'ITISTEST';

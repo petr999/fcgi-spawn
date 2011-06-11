@@ -9,11 +9,13 @@ use Sub::Name;
 
 use FCGI::Spawn::TestUtils;
 
-extends( 'FCGI::Spawn::Tests::CleanMain' );
+extends('FCGI::Spawn::Tests::CleanMain');
 
 with( 'FCGI::Spawn::Tests::RoleNegative', );
 
-has( '+descr' => ( 'default' => 'Not cleaning global variables from CGI programs', ), );
+has( '+descr' =>
+        ( 'default' => 'Not cleaning global variables from CGI programs', ),
+);
 
 __PACKAGE__->meta->make_immutable;
 

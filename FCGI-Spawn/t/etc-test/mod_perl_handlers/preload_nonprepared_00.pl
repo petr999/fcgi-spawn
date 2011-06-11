@@ -1,8 +1,10 @@
+#!/usr/bin/env perl
+
 use strict;
 use warnings;
 
 use Apache::Fake;
 
-sub msg_handler{ print 'HANDLER' }
+sub msg_handler { print 'HANDLER' }
 
-Apache->request->cleanup_register(\&msg_handler);
+Apache->request->cleanup_register( \&msg_handler );

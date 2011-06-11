@@ -8,17 +8,21 @@ use File::Basename qw/dirname/;
 
 extends( 'FCGI::Spawn::Tests::ChangeCgi', );
 
-has( '+descr' => ( 'default' => 'Used module change lead to CGI script file output change', ) );
+has('+descr' => (
+        'default' =>
+            'Used module change lead to CGI script file output change',
+    )
+);
 
 __PACKAGE__->meta->make_immutable;
 
-sub make_cgi{
-  my( $self, $name ) = @_;
-  my $env = $self -> get_env;
-  my $cgi = $$env{ 'SCRIPT_FILENAME' };
-  croak unless defined( $cgi ) and length( $cgi );
-  my $cgi_dir = dirname( $cgi );
-  my $cgi_contents = \<<EOT;
+sub make_cgi {
+    my ( $self, $name ) = @_;
+    my $env = $self->get_env;
+    my $cgi = $$env{ 'SCRIPT_FILENAME' };
+    croak unless defined($cgi) and length($cgi);
+    my $cgi_dir      = dirname($cgi);
+    my $cgi_contents = \<<EOT;
 #!$^X
 
 use strict;
@@ -31,10 +35,10 @@ use StatsMod;
 StatsMod::tell_name();
 
 EOT
-  $self -> write_file_contents( $cgi_contents => $cgi, );
-  
-  my $mod_fn = join '/', dirname( $cgi ), 'StatsMod.pm';
-  my $mod_contents = \<<EOM;
+    $self->write_file_contents( $cgi_contents => $cgi, );
+
+    my $mod_fn = join '/', dirname($cgi), 'StatsMod.pm';
+    my $mod_contents = \<<EOM;
 #!$^X
 
 package StatsMod;
@@ -52,7 +56,7 @@ sub tell_name{
 
 1;
 EOM
-  $self -> write_file_contents( $mod_contents => $mod_fn, );
+    $self->write_file_contents( $mod_contents => $mod_fn, );
 }
 
 1;

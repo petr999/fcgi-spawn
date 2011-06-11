@@ -12,13 +12,13 @@ has( '+descr' => ( 'default' => 'specific package typeglobs reset', ) );
 
 __PACKAGE__->meta->make_immutable;
 
-sub make_cgi{
-  my( $self, $name ) = @_;
-  my $env = $self -> get_env;
-  my $cgi = $$env{ 'SCRIPT_FILENAME' };
-  croak unless defined( $cgi ) and length( $cgi );
-  my $cgi_dir = dirname( $cgi );
-  my $cgi_contents = \<<EOT;
+sub make_cgi {
+    my ( $self, $name ) = @_;
+    my $env = $self->get_env;
+    my $cgi = $$env{ 'SCRIPT_FILENAME' };
+    croak unless defined($cgi) and length($cgi);
+    my $cgi_dir      = dirname($cgi);
+    my $cgi_contents = \<<EOT;
 #!$^X
 
 use strict;
@@ -31,40 +31,35 @@ use CleanIncSubNs;
 CleanIncSubNs::tell_name();
 
 EOT
-  $self -> write_file_contents( $cgi_contents => $cgi, );
-  
-  my $mod_fn = join '/', dirname( $cgi ), 'CleanIncSubNs.pm';
-  my $mod_contents = \( join "\n",
-    "#!$^X",
-    "",
-    "package CleanIncSubNs;",
-    "",
-    "use strict;",
-    "use warnings;",
-    "",
-    "use JSON;",
-    "",
-    "no warnings 'redefine';",
-    "",
-    "our \$name = '$name';",
-    "",
-  );
-  my $name_orig = $self ->get_cmp_vals -> [ 0 ];
-  $$mod_contents .= ( join "\n",
-    "sub tell_name{",
-      'print "Content-type: text/plain\n\n".encode_json( [ "ITIS"',
-      '.'
-        .(
-          ( $name eq $name_orig ) ?  '' : 'join "", reverse split //, '
-        ).'"'
-        .(  ( $name eq $name_orig ) ? $name
-          : ( join '', reverse split //, $name )
-        ).'", ]  );'
-    ,'}',
-    '',
-    '1;',
-  );
-  $self -> write_file_contents( $mod_contents => $mod_fn, );
+    $self->write_file_contents( $cgi_contents => $cgi, );
+
+    my $mod_fn = join '/', dirname($cgi), 'CleanIncSubNs.pm';
+    my $mod_contents = \(
+        join "\n",                 "#!$^X",
+        "",                        "package CleanIncSubNs;",
+        "",                        "use strict;",
+        "use warnings;",           "",
+        "use JSON;",               "",
+        "no warnings 'redefine';", "",
+        "our \$name = '$name';",   "",
+    );
+    my $name_orig = $self->get_cmp_vals->[0];
+    $$mod_contents .= (
+        join "\n",
+        "sub tell_name{",
+        'print "Content-type: text/plain\n\n".encode_json( [ "ITIS"',
+        '.'
+            . ( ( $name eq $name_orig ) ? '' : 'join "", reverse split //, ' )
+            . '"'
+            . (
+            ( $name eq $name_orig )
+            ? $name
+            : ( join '', reverse split //, $name )
+            )
+            . '", ]  );',
+        '}', '', '1;',
+    );
+    $self->write_file_contents( $mod_contents => $mod_fn, );
 }
 
 1;
