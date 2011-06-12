@@ -1,5 +1,3 @@
-#!/usr/bin/perl
-
 package FCGI::Spawn::BinUtils;
 
 use strict;
@@ -11,7 +9,8 @@ use Perl6::Export::Attrs;
 use Carp;
 use Const::Fast;
 
-# convinience for stats/x_stats policies for comparison of former and current
+# convinience for stats/x_stats policies for comparison of former and current;
+# used in statnames_to_policy()
 const(
     my $POLICIES => {
         qw/dev 0 ino 1 mode 2 nlink 3 uid 4 gid 5 rdev 6
@@ -19,6 +18,17 @@ const(
     },
 );
 
+# Inits shared memory variable to be used for variables shareed among forks,
+# needed for time_limit feature
+# Takes   :     reference to a scalar to be initialized, and a HashRef filled
+#               with 'mm_size', 'mm_file' attributes for file size in bytes
+#               and its name, and 'uid' for mm_permission()
+# Depends :     on IPC::MMA and if current user id is 0 for mm_premission()
+#               to succeed
+# Changes :     initialized MM variable in ${ $_[0] }
+# Throws  :     if IPC::MMA not found or if user id is 0 but mm_permission did
+#               not succeed.
+# Returns :     n/a
 sub _init_ipc {
     my ( $ipc_ref => $mm_scratch ) = @_;
     unless ( defined $$ipc_ref ) {
@@ -29,9 +39,10 @@ sub _init_ipc {
         croak("IPC::MMA init: $@ $!") unless $rv;
         my $uid = $mm_scratch->{ 'uid' };
         unless ($UID) {
-            $rv =
-                not IPC::MMA::mm_permission( $$ipc_ref => '0600', $uid => -1,
-                );
+            $rv = not IPC::MMA::mm_permission(
+                $$ipc_ref => '0600',
+                $uid      => -1,
+            );
 
             # This croak is needed for shm test in chroot testkit too
             croak("SHM unpermitted for $uid: $!")
@@ -40,6 +51,16 @@ sub _init_ipc {
     }
 }
 
+# Makes a variable shared among forks
+# Takes   :     ArrayRef[Ref] of two refs: reference to a variable to
+#               share, it is a reference to SCALAR, ARRAY, or HASH, and a
+#               reference to shared memory variable initialized with
+#               _init_ipc(); the second parameter $_[1]is a HashRef the same
+#               as for _init_ipc()
+# Changes :     references in the first argument, $_[0]
+# Throws  :     if first element of the ArrayRef the first argument is not a
+#               reference
+# Returns :     n/a
 sub make_shared : Export( :scripts :testutils ) {
     my ( $refs, $mm_scratch, ) = @_;
     my ( $ref, $ipc_ref ) = @$refs;
@@ -52,6 +73,10 @@ sub make_shared : Export( :scripts :testutils ) {
     tie( ( $type eq 'hash' ) ? %$ref : $$ref, $tie_class, $ipc_var );
 }
 
+# Makes subroutine to kill a process with a signal but kills with TERM if the
+# signal is INT.
+# Takes   :     signal name and process id.
+# Returns :     sub to be assinged as a %SIG value(s).
 sub sig_handle : Export( :scripts ) {
     my ( $sig, $pid ) = @_;
     return sub {
@@ -60,6 +85,11 @@ sub sig_handle : Export( :scripts ) {
     };
 }
 
+# (Re)opens a log, changes standard handles to it.
+# Takes   :     log file name
+# Changes :     STDIN handle to < /dev/null
+# Throws  :     if log file can not be open or /dev/null does not exist
+# Returns :     n/a
 sub re_open_log : Export( :scripts ) {
     my $log_file = shift;
     close STDERR if defined fileno STDERR;
@@ -72,6 +102,9 @@ sub re_open_log : Export( :scripts ) {
         unless open( STDIN, "<", '/dev/null' );
 }
 
+# Prints help and exits
+# Takes   :     n/a
+# Returns :     n/a
 sub print_help_exit : Export( :scripts ) {
     print <<EOT;
 Usage:
@@ -96,11 +129,19 @@ EOT
     CORE::exit;
 }
 
+# Defines if socket is a TCP socket, can return host and port parts
+# Takes   :     string to mean a socket, like 'host.net:5555', '1.2.3.4:5556'
+#               or 'host.com:5557'
+# Returns :     in scalar context: TCP socket; in array context: host/addr
+#               and port parts
 sub is_sock_tcp : Export( :modules :testutils ) {
     my $rv = shift =~ m/^([^:]+):([^:]+)$/;
     wantarray ? ( $1 => $2, ) : $rv;
 }
 
+# Takes   :     process id
+# Depends :     on waitpid with WNOHANG and a kill 0 implementation in OS;
+# Returns :     Boolean is process dead
 sub is_process_dead : Export( :scripts :testutils ) {
     my $pid = shift;
     waitpid $pid => WNOHANG;
@@ -109,6 +150,9 @@ sub is_process_dead : Export( :scripts :testutils ) {
     return $rv;
 }
 
+# Same as is_sock_tcp() but returns always array anbd has additional chacks
+# Takes   :     Str the socket name
+# Returns :     Array (host/addr) and port from the socket name
 sub addr_port : Export( :testutils ) {
     my $sock_name = shift;
     my @rv        = is_sock_tcp( $sock_name, );
@@ -123,29 +167,166 @@ sub addr_port : Export( :testutils ) {
     return @rv;
 }
 
-=pod
-
-=head2 statnames_to_policy( 'mtime', 'ctime', ... );
-
-Static function.
-Convert the list of file inode attributes' names checked by stat() builtin to the list of numbers for it described in the perldoc -f C<stat> .
- In the case if the special word 'all' if met on the list, all the attributes are checked besides 'atime' (8).
-Also, you can define the order in which the C<stats> are checked to reload perl modules: if the change is met, no further checks of this list for particular module on particular request are made as a decision to recompile that source is already taken.
-This is the convenient way to define the modules reload policy, the C<'stat_policy'> object property, among with the need in modules' reload itself by the C<'stats'> property checked as boolean only.
-
-=cut
-
 # Static function
 # Turns the stat() file attributes from names to numbers
-# Takes: optional name(s) of policies to take into account when decide
-# if file changed or not
-# Returns: array reference filled with numbers corresponding to those names
+# Takes   :     optional name(s) of policies to take into account when decide
+#               if file changed or not
+# Depends :     on $POLICIES constant
+# Returns :     array reference filled with numbers corresponding policy(ies)'
+#               names
 sub statnames_to_policy : Export( :modules :testutils ) {
     my $rv =
         grep( { $_ eq 'all' } @_ )
         ? [ 0 .. 7, 9 .. 12 ]
-        : [ map { $POLICIES->{ $_ }; } @_ ];
+        : [ map { $$POLICIES{ $_ }; } @_ ];
     return $rv;
 }
 
 1;
+
+__END__
+
+=pod
+
+=head1 NAME
+
+FCGI::Spawn::BinUtils – small static functions for FCGI::Spawn.
+
+=head1 VERSION
+This documentation refers to L<FCGI::Spawn> version 0.17.
+
+=head1 SYNOPSIS
+
+For use in modules:
+
+    use FCGI::Spawn::BinUtils :modules;
+
+    # Follow 'stats' policy
+    my $policy = statnames_to_policies( 'mtime' );
+
+    # Unlink socket if it is a UNIX socket
+    my $sock_name = '/tmp/spawner.sock';
+    my $is_sock_tcp = &is_sock_tcp($sock_name);
+    unless( $is_sock_tcp ) { unlink $sock_name }
+
+For use in scripts:
+
+    use FCGI::Spawn::BinUtils :scripts;
+
+    my($addr => $port) = addr_port( 'host.net:5558' );
+
+    my( $shared, $ipc ); $shared={};
+    make_shared( [ $shared => \$ipc, ] =>
+        { mm_size => $mm_size, mm_file => $mm_file, uid => $uid, },
+    );
+
+    print_help_exit(); # exits here
+    # delete the previous line or the following will not be executed
+    re_open_log( '/path/to/file.log' );
+    
+
+=head1 DESCRIPTION
+
+Some of the functions commonly used in L<FCGI::Spawn> require no
+persistence/OOP but certain module(s) to interact with OS. Some of them are
+useful for testing, too. Such a facilities sould be incapsulated in a
+separate module.
+
+=head1 FUNCIONS
+
+=head2 statnames_to_policy( 'mtime', 'ctime', ... );
+
+Convert the list of file inode attributes' names checked by stat() builtin to
+the list of numbers for it described in the C<'stat'> .  In the case if the
+special word 'all' if met on the list, all the attributes are checked besides
+'atime' (8).
+
+Also, you can define the order in which the C<'FCGI::Spawn::stats'> are
+checked to reload perl modules: if the change is met, no further checks of
+this list for particular module on particular request are made as a decision
+to recompile that source is already taken.
+
+This is the convenient way to define the modules reload policy, the
+C<'FCGI::Spawn::stat_policy> object property, among with the need in modules'
+reload itself by the C<'FCGI::Spawn::stats'> property checked as boolean only.
+
+=head2 make_shared($refs => $mm_scratch);
+
+where
+    
+    $refs = [ Ref, Ref ]; 
+
+- uninitialized references to wanted varable (scalar or array or hash) to be
+shared among forks, and to a scalar, the L<IPC::MMA> variable,
+correspondently; That second variable should be of the same context as the
+first.
+
+    $mm_scratch = { 'mm_file' => '/path/to/mm_file.lck', 'mm_size' => 65535,
+        'uid' => 12345,
+    };
+
+- HashRef defining values for C<'IPC::MMA::mm_create'> and
+C<'IPC::MMA::mm_permission'>
+
+=head2 re_open_log( '/path/to/file.log' );
+
+Detach from current terminal and open the log from scratch. Can be used in
+conmjunvtion with the log rotator, too.
+
+=head2 print_help_exit();
+
+Prints help on L<fcgi_spawn> and exits.
+
+=head1 DIAGNOSTICS
+
+Any problems with terminal handles: STDIN, STDOUT and STDERR can cause the
+process to die. Also, L<IPC::MMA> function can have issues on use, like the
+one known with mm_permission available only for root.
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+The whole C<make_shared> and C<_init_ipc> feature is supposed to be used only
+if L<FCGI::Spawn/time_limit> knob is in use, and its implementations depends
+on if the current user id is 0, too.
+
+=head1 DEPENDENCIES
+
+L<Carp>, L<POSIX>, L<English> included in Perl core distribution.
+
+L<Perl6::Export::Attrs>, L<Const::Fast>, and an L<IPC::MMA> for the case if
+you use the L<FCGI::Spawn/time_limit> feature, all available from CPAN.
+
+=head1 BUGS AND LIMITATIONS
+
+There may be known bugs and issues in this module. More info at:
+L<http://bugs.vereshagin.org/product/FCGI%3A%3ASpawn> .
+
+Please report problems to L<http://bugs.vereshagin.org> or to the L</AUTHOR>.
+Patches are welcome.
+
+=head1 AUTHOR
+
+Peter Vereshagin <peter@vereshagin.org> (http://vereshagin.org).
+
+More info about L<FCGI::Spawn>: http://fcgi-spawn.sf.net
+
+=head1 LICENCE AND COPYRIGHT
+
+Copyright (c) 2011 Peter Vereshagin <peter@vereshagin.org>.
+All rights reserved.
+
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2 of the License, or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
+
+=cut

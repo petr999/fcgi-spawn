@@ -280,8 +280,8 @@ my $uid = getpwnam( $user );  croak "Get ( probably non-existent ) user $user: $
 my( $shared, $ipc ); $shared={};
 
 if( $time_limit ){
-  make_shared( [ $shared => \$ipc, ] =>
-      { mm_size => $mm_size, mm_file => $mm_file, uid => $uid, },
+  make_shared( [ $shared => \$ipc, ] => # $shared is a ref, too (HashRef)
+      { 'mm_size' => $mm_size, 'mm_file' => $mm_file, 'uid' => $uid, },
   );
   $conf->set_pid_callouts( $shared );
   $conf->set_time_limit( $time_limit );

@@ -185,12 +185,6 @@ or you can enclose it into the eval() like that:
 is the array reference which sets the parameters for chown() builtin on newly created socket, when needed.
 Default: none.
 
-=item * C<maxlength>
-
-is the maximum user's file size for being evaluated. TBD: to be implemented yet, or DIY: use it in your own C<callout>.
-
-Default: 100000.
-
 =item * max_requests
 
 is the maximum requests number served by every separate fork.
@@ -407,35 +401,60 @@ use Sub::Name;
 
 my $fcgi         = undef;    # fastcgi object
 my $use_cgi_fast = 0;        # use CGI::Fast or not
-my %xinc;    # same as %INC but for templates ( x_stats feature )
-
-my $maxlength = 100000;    # default maximum length of a perl file to call out
+my %xinc;    # same as %INC but for templates, configs, etc. (x_stats feature)
 
 # defaults for spawn object
 const my $defaults => {
-    qw/n_processes 5 max_requests 20 clean_inc_hash 0
-        clean_main_space 0 clean_inc_subnamespace/ => [],
-    'callout' => sub { my $fcgi = pop; do shift; },
-    qw/stats 1 stats_policy/     => statnames_to_policy( 'mtime', ),
-    qw/x_stats 1 x_stats_policy/ => statnames_to_policy( 'mtime', ),
-    'state'                      => {},
-    qw/seed_rand 1 save_env 1 procname 1 is_prepared 0
-        acceptor fcgi use_cgi 0 sock_name/ => '/tmp/spawner.sock',
-    sock_queue  => 100,    # default from CGI::Fast
-    keep_socket => 0,
+
+    ### General defaults
+    qw/n_processes 5/,    # number of processes, see FCGI::ProcManager
+    qw/max_requests 20/,  # maximum amount of requests per single fork process
+
+    qw/clean_inc_hash 0/,      # clean %INC changes
+    qw/clean_main_space 0/,    # clean %main:: changes
+    'clean_inc_subnamespace' => [],   # clean %<specified_namespace>:: changes
+
+    ### Communications and callout defaults
+    # call out file requested by mean of do() and have $fcgi defined
+    'callout' =>
+        subname( 'default_callout' => sub { my $fcgi = pop; do shift; } );
+        mod_perl => 2,                # use mod_perl2 simulation
+    qw/acceptor fcgi/,                # accept() connection by mean of FCGI.pm
+    qw/sock_name/ => '/tmp/spawner.sock',    # UNIX socket in /tmp
+    sock_queue  => 100,    # queue to accept(), default from CGI::Fast
+    keep_socket => 0,      # not to delete socket file
+
+    ### Room service defaults
+    'state' => {},         # initial state is empty
+
+    #TODO is this needed?
+    qw/use_cgi 0/,    # CGI.pm is not used, no need in its ->_reset_globals
+
+    qw/stats 1/,      # check stat()s on file(s) in %INC
+    'stats_policy' => statnames_to_policy( 'mtime', ),  # check mtime in stats
+
+    # have xinc() to remember subs depending on if file(s) stat()(s) changed
+    qw/x_stats 1/,
+
+    # check mtime in x_stats
+    'x_stats_policy' => statnames_to_policy('mtime'),
+    qw/save_env 1/,    # restore envoronment after callout
+    qw/procname 1/,    # change process name, $0, to script filename
+
+    #TODO is this needed?
+    qw/is_prepared 0/,    # indicate that preparation is made before fork()
+
+    # names of subs to reload modules on those stat()s change(s)
     stats_reload_method => [qw/reload_symtable_by_module/],
-    reload_failover     => 0,
-    mod_perl            => 0,
-    use_php             => 0,
-    php_fext            => 'php',
-    php_ctype           => 'text/html',
+    reload_failover => 0,    # keep symtable from deleting on reload failure
 };
 
 # Function
 # Unlinks local unix socket
-# Takes: socket file name
-# Throws: on unsuccessful removal or if non-socket exists with the same name
-# Returns: n/a
+# Takes     :   socket file name
+# Throws    :   on unsuccessful removal or if non-socket exists with the same
+#               name
+# Returns   :   n/a
 sub unlink_socket {
     my $sock_name = shift;
     if ( -e $sock_name ) {
@@ -448,9 +467,9 @@ sub unlink_socket {
 # Object method
 # Changes local unix socket inode info accoring to sock_chown
 # and sock_chmod attributes
-# Takes: n/a
-# Throws: wrong attribute(s) or chown/chmod error
-# Returns: n/a
+# Takes     :   n/a
+# Throws    :   wrong attribute(s) or chown/chmod error
+# Returns   :   n/a
 sub sock_change {
     my $self      = shift;
     my $sock_name = $self->{ 'sock_name' };
@@ -468,9 +487,9 @@ sub sock_change {
 # Static method
 # Loads modules required for mod_perl emulation
 # and sets global variables according to constructor properties
-# Takes: constructor properties
-# Throws: on error loading module
-# Returns: n/a
+# Takes     :   constructor properties
+# Throws    :   on error loading module
+# Returns   :   n/a
 sub load_optional_module_modperl {
     my ( $class, $properties ) = @_;
     if ( defined $properties->{ 'mod_perl' } and $properties->{ 'mod_perl' } )
@@ -496,9 +515,9 @@ sub load_optional_module_modperl {
 
 # Static method
 # Loads optional CGI.pm module
-# Takes: construictor properties
-# Throws: on error loading module
-# Returns: n/a
+# Takes     :   construictor properties
+# Throws    :   on error loading module
+# Returns   :   n/a
 sub load_optional_module_cgi {
     my ( $class => $properties, ) = @_;
     if ( defined $properties->{ 'use_cgi' } and $properties->{ 'use_cgi' } ) {
@@ -507,46 +526,13 @@ sub load_optional_module_cgi {
 }
 
 # http://bugs.vereshagin.org/show_bug.cgi?id=7
-sub load_optional_module_php {
-
-#   my( $class, $properties ) = @_;
-#   if( defined $properties->{ use_php } and $properties->{ use_php } ){
-#     eval{ require PHP;
-#           PHP::options( stdout => sub {
-#                        print shift;
-#                },
-#           );
-#         # PHP::options( debug => 1, );
-#     1; } or die $!;
-#     if( defined $properties->{ php_fext } and $properties->{ php_fext } ){
-#       my $php_fext = $properties->{ php_fext };
-#       if( '/' eq substr $php_fext, 0, 1 ){
-#         my $regex =~ s:^/|/$::g;
-#         $php_fext = sub{ ~/$regex/ };
-#       } else {
-#         $php_fext =~ s/^([^\.])/.$1/;
-#         my $php_fext_copy = $php_fext;
-#         my $length_php_fext = length $php_fext;
-#         $php_fext = sub{
-#           my $fn = shift; my $length_fn = length( $fn );
-#           $php_fext_copy eq substr $fn, $length_fn - $length_php_fext, $length_php_fext;
-#         };
-#       }
-#       $properties->{ php_fext } = $php_fext;
-#       $properties->{ php_callout } = sub{
-#         print "Content-type: ".$properties->{ php_ctype }."\n\n"
-#           if defined( $properties->{ php_ctype } ) and length $properties->{ php_ctype };
-#         PHP::include( shift );
-#       };
-#     }
-#   }
-}
+sub load_optional_module_php { }
 
 # Static method
 # Loads optional modules for constructor
-# Takes: constructor properties
-# Throws: if module(s) load fails
-# Returns: n/a
+# Takes     :   constructor properties
+# Throws    :   if module(s) load fails
+# Returns   :   n/a
 sub load_optional_modules {
     my ( $class => $properties, ) = @_;
     $class->load_optional_module_modperl($properties);
@@ -558,9 +544,9 @@ sub load_optional_modules {
 # Loads the corresponding connection acceptor module
 # and assigns request attribute to an object if it is FCGI.pm to accept
 # only FCGI.pm ( default ) and CGI::Fast are currently supported
-# Takes: constructor properties
-# Throws: on correponding acceptor module load fails
-# Changes: optionally 'request' constructoir properties value
+# Takes     :   constructor properties
+# Throws    :   on correponding acceptor module load fails
+# Changes   :   optionally 'request' constructoir properties value
 # or %ENV values for CGI::Fast
 # Returns: n/a
 sub init_acceptor {
@@ -598,9 +584,9 @@ sub init_acceptor {
 
 # Static method
 # Constructor
-# Takes: optional properties hash ref
-# Throws: if CGI::Fast has made its BEGIN{} already
-# Returns: FCGI::Spawn object
+# Takes     :   optional properties hash ref
+# Throws    :   if CGI::Fast has made its BEGIN{} already
+# Returns   :   FCGI::Spawn object
 sub new {
     my $class = shift;
     my ( $new_properties, $properties );
@@ -616,16 +602,13 @@ sub new {
     my $sock_name   = $properties->{ 'sock_name' };
     my $sock_queue  = $properties->{ 'sock_queue' };
     my $is_sock_tcp = &is_sock_tcp($sock_name);
-    &unlink_socket($sock_name)
-        unless $is_sock_tcp
-            or $properties->{ 'keep_socket' };
+    unless ( $is_sock_tcp or $properties->{ 'keep_socket' } ) {
+        &unlink_socket($sock_name);
+    }
     $class->init_acceptor($properties);
     $class->load_optional_modules($properties);
     my $proc_manager = FCGI::ProcManager->new($properties);
 
-    if ( defined $$properties{ 'maxlength' } ) {
-        $maxlength = $$properties{ 'maxlength' };
-    }
     $class->make_clean_inc_subnamespace($properties);
     $properties->{ 'proc_manager' } = $proc_manager;
     my $self = bless( $properties => $class, );
@@ -639,10 +622,10 @@ sub new {
 # Assigns 'reloader' attribute for constructor
 # Reloader defines how the arbitrary module will be reloaded if its stat()
 # changed and the 'stats' attribute is on
-# Takes: n/a
-# Depends: on 'stats_reload_method' attribute, ArrayRef[Str]
-# Changes: 'reloader' attribute, ArrayRef[CodeRef]
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'stats_reload_method' attribute, ArrayRef[Str]
+# Changes   :   'reloader' attribute, ArrayRef[CodeRef]
+# Returns   :   n/a
 sub assign_reloader {
     my $self = shift;
     if (defined( $$self{ 'stats_reload_method' } )
@@ -666,10 +649,10 @@ sub assign_reloader {
 # Assigns 'acceptor' attribute for constructor
 # Acceptor defines how the connection will be handled
 # Currently only FCGI.pm and CGI::Fast are available
-# Takes: n/a
-# Depends: on 'acceptor' attribute, Str
-# Changes: 'acceptor' attribute, CodeRef
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'acceptor' attribute, Str
+# Changes   :   'acceptor' attribute, CodeRef
+# Returns   :   n/a
 sub assign_acceptor {
     my $self     = shift;
     my $acceptor = $$self{ 'acceptor' };
@@ -695,10 +678,10 @@ sub assign_acceptor {
 # Object method
 # Transforms 'clean_inc_subnamespace' property to files names without
 # extension for use to compare with %INC elements
-# Takes: n/a
-# Depends: on 'clean_inc_subnamespace' attribute, Str or ArrayRef[Str]
-# Changes: 'clean_inc_subnamespace' attribute, ArayRef[ Str ]
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'clean_inc_subnamespace' attribute, Str or ArrayRef[Str]
+# Changes   :   'clean_inc_subnamespace' attribute, ArayRef[ Str ]
+# Returns   :   n/a
 sub make_clean_inc_subnamespace {
     my ( $self => $properties, ) = @_;
     my $cisns = $$properties{ 'clean_inc_subnamespace' };
@@ -713,11 +696,11 @@ sub make_clean_inc_subnamespace {
 # Calls the 'callout' attribute as a sub
 # Performs necessary savings of environment and/or temporarily changes
 # process name
-# Takes: cgi script file name
-# Depends: on 'save_env' and 'procname' attributes
-# Changes: globals according to cgi script name, 'procname' and 'save_env'
-# attributes
-# Returns: n/a
+# Takes     :   cgi script file name
+# Depends   :   on 'save_env' and 'procname' attributes
+# Changes   :   globals according to cgi script name, 'procname' and 'save_env'
+#               attributes
+# Returns   :   n/a
 sub _callout {
     my $self = shift;
     my %save_env;
@@ -727,24 +710,16 @@ sub _callout {
         $procname = $0;
         $0        = $_[0];
     }
-
-    # http://bugs.vereshagin.org/show_bug.cgi?id=7
-    # if ( $$self{ 'use_php' } and $$self{ 'php_fext' }(@_) ) {
-    #     $$self{ 'php_callout' }(@_);
-    # }
-    # else {
     $$self{ callout }( @_ => $fcgi );
-
-    # }
     if ( $self->{ 'procname' } ) { $0   = $procname }
     if ( $self->{ 'save_env' } ) { %ENV = %save_env }
 }
 
 # Object method
 # Saves mod_perl handlers as a state
-# Takes: n/a
-# Changes: 'handlers' state
-# Returns: n/a
+# Takes     :   n/a
+# Changes   :   'handlers' state
+# Returns   :   n/a
 sub save_handlers {
     my $self     = shift;
     my $handlers = Apache->request->{ 'HANDLERS' };
@@ -766,9 +741,9 @@ sub save_handlers {
 # Calls out things to happen on connection accept concerning cgi script
 # saves mod_perl handlers from modification by ->_callout()
 # and calls ->postspawn_dispatch()
-# Takes: cgi script file name
-# Depends: on 'mod_perl' attribute
-# Changes: 'saved_handlers' attributes
+# Takes     :   cgi script file name
+# Depends   :   on 'mod_perl' attribute
+# Changes   :   'saved_handlers' attributes
 sub callout {
     my $self = shift;
     $self->_callout(@_);
@@ -778,10 +753,10 @@ sub callout {
 # Object method
 # Cleans out particular namespace to be reloaded on every callout
 # particularly useful to reload an application config like Bugzilla::Config
-# Takes: n/a
-# Depends: on 'clean_inc_subnamespace' attribute
-# Changes: corresponding symbol table(s)
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'clean_inc_subnamespace' attribute
+# Changes   :   corresponding symbol table(s)
+# Returns   :   n/a
 sub clean_inc_particular {
     my $self = shift;
     map {
@@ -797,11 +772,11 @@ sub clean_inc_particular {
 # Object method
 # Runs several processes by mean of fork() system call
 # optionally saves the state(s) to be restored on every callout
-# Takes: n/a
-# Depends: on 'clean_main_space' and 'clean_inc_hash' attributes
-# Changes: states for main:: namespace and an %INC, also $PID
-# and 'is_prepared' property
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'clean_main_space' and 'clean_inc_hash' attributes
+# Changes   :   states for main:: namespace and an %INC, also $PID
+#               and 'is_prepared' property
+# Returns   :   n/a
 sub prepare {
     my $self = shift;
 
@@ -825,11 +800,12 @@ sub prepare {
 # Object method
 # Runs main accept-callout loop with preparation(s)
 # and morning-after(s) for a next callout
-# Takes: n/a
-# Depends: on properties 'is_prepared', 'proc_manager', 'max_requests',
-# package's $use_cgi_fast and  environment's SCRIPT_FILENAME
-# Changes: package's $fcgi and things according to callout and its arounds
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on properties 'is_prepared', 'proc_manager', 'max_requests',
+#               package's $use_cgi_fast and  environment's SCRIPT_FILENAME
+# Changes   :   package's $fcgi and things according to callout
+#               and its arounds
+# Returns   :   n/a
 sub spawn {
     my $self = shift;
     $self->prepare unless $$self{ 'is_prepared' };
@@ -855,9 +831,9 @@ sub spawn {
 # files are keys of the hash if supplied as a parameter
 # which is used for 'x_stats' feature
 # or the values of the %INC for 'stats' feature
-# Takes: optional hash reference to view for files names in keys
-# Depends on: %INC values if no parameter is supplied
-# Returns: HashRef as filename => its stat() in ArrayRef
+# Takes     :   optional hash reference to view for files names in keys
+# Depends   :   on %INC values if no parameter is supplied
+# Returns   :   HashRef as filename => its stat() in ArrayRef
 sub get_inc_stats {
     my $stat_src  = shift;
     my %inc_state = ();
@@ -872,13 +848,13 @@ sub get_inc_stats {
 
 # Object method
 # Sets 'stats' as an object's state
-# Takes: optional prefix to make different state name for different stats.
-# Only 'x' is used by now. And optional stats hash to be saved as an object
-# state.
-# Changes: state attribute according to prefix and hash to lookup for in
-# get_inc_stats(). Or 'stats' state and/or %INC hash, if no prefix and/or hash
-# is supplied.
-# Returns; n/a
+# Takes     :   optional prefix to make different state name for different
+#               stats.  Only 'x' is used by now. And optional stats hash to
+#               be saved as an object state.
+# Changes   :   state attribute according to prefix and hash to lookup for in
+#               get_inc_stats(). Or 'stats' state and/or %INC hash, if no
+#               prefix and/or hash is supplied.
+# Returns   :   n/a
 sub set_state_stats {
     my ( $self, $pref, $stat_src ) = @_;
     my $stats_name = 'stats';
@@ -889,10 +865,10 @@ sub set_state_stats {
 
 # Object method
 # Reloads particular module
-# Takes: module name
-# Depends: on 'reload_failover' attribute
-# Changes: %INC with reloaded module
-# Returns: n/a
+# Takes     :   module name as it appears in %INC value(s)
+# Depends   :   on 'reload_failover' attribute
+# Changes   :   %INC with reloaded module
+# Returns   :   n/a
 sub reload_symtable_by_module {
     my $self     = shift;
     my $module   = shift;
@@ -941,18 +917,19 @@ sub reload_symtable_by_module {
 
 # Object method
 # Resets global variables influencing the CGI input
-# Takes: n/a
-# Depends: on 'use_cgi', 'acceptor', 'cgi_fast', 'mod_perl' attributes, and if
-# CGI.pm is loaded on the %INC
-# Changes: global variables, mostrly in CGI* package(s).
-# Throws: if CGI.pm can not reset globals
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'use_cgi', 'acceptor', 'cgi_fast', 'mod_perl' attributes,
+#               and if CGI.pm is loaded on the %INC
+# Changes   :   global variables, mostrly in CGI* package(s)
+# Throws    :   if CGI.pm can not reset globals
+# Returns   :   n/a
 sub cgi_reset_globals {
     my $self = shift;
-    if (    ( $self->{ 'use_cgi' } >= 0 )
+    if (( $self->{ 'use_cgi' } >= 0 )
         and defined( $INC{ 'CGI.pm' } )
-        and
-        ( $self->{ 'acceptor' } ne 'cgi_fast' )   # CGI::Fast resets by itself
+
+        # CGI::Fast resets by itself
+        and ( $self->{ 'acceptor' } ne 'cgi_fast' )
         and not $self->{ 'mod_perl' }    # Apache::Fake resets by its handler
         )
     {
@@ -966,10 +943,10 @@ sub cgi_reset_globals {
 # Object method
 # Performs mod_perl cleanup handlers and a mod_perl internal cleanup request
 # Restores mod_perl handlers saved previously in ->save_handlers()
-# Takes: n/a
-# Depends: on 'handlers' saved state
-# Changes: mod_perl's 'HANDLERS' attribute
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'handlers' saved state
+# Changes   :   mod_perl's 'HANDLERS' attribute
+# Returns   :   n/a
 sub modperl_reset {
     my $self     = shift;
     my $handlers = Apache->request->{ 'HANDLERS' }->{ 'PerlCleanupHandler' };
@@ -984,9 +961,9 @@ sub modperl_reset {
 # Performs actions after callout: takes off timeout from process id, sets new
 # stat() result for perl files and templates ( x_stats ), resets mod_perl
 # and CGI values from last call
-# Takes: n/a
-# Depends: on 'stats', 'x_stats' and 'mod_perl' attributes
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'stats', 'x_stats' and 'mod_perl' attributes
+# Returns   :   n/a
 sub postspawn_dispatch {
     my $self = shift;
     $self->ipc_pid_delete;
@@ -1004,11 +981,12 @@ sub postspawn_dispatch {
 # Performs actions before callout for a particular script name: cleans %INC
 # and its analogue for x_stats, main namespace and sets process id for a
 # timeout
-# Takes: script file name
-# Depends: on saved states 'fcgi_spawn_inc', fcgi_spawn_main' and attributes
-# 'clean_inc_hash', 'fcgi_spawn_inc', 'stats', 'x_stats', 'clean_main_space'
-# Changes: %INC, %main::
-# Returns: n/a
+# Takes     :   script file name
+# Depends   :   on saved states 'fcgi_spawn_inc', fcgi_spawn_main' and
+#               attributes 'clean_inc_hash', 'fcgi_spawn_inc', 'stats',
+#               'x_stats', 'clean_main_space'
+# Changes   :   %INC, %main::
+# Returns   :   n/a
 sub prespawn_dispatch {
     my ( $self, $sn ) = @_;
     if ( $self->{ 'clean_inc_hash' } == 1 ) {
@@ -1041,10 +1019,10 @@ sub prespawn_dispatch {
 
 # Object method
 # Adds pid to an IPC shared hash for 'time_limit' feature
-# Takes: n/a
-# Depends: on 'time_limit' attribute
-# Changes: 'pid_callouts' attribute
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'time_limit' attribute
+# Changes   :   'pid_callouts' attribute
+# Returns   :   n/a
 sub ipc_pid_insert {
     my $self = shift;
     if ( $self->{ 'time_limit' } ) {
@@ -1055,10 +1033,10 @@ sub ipc_pid_insert {
 
 # Object method
 # Removes pid from an IPC shared hash for 'time_limit' feature
-# Takes: n/a
-# Depends: on 'time_limit' attribute
-# Changes: 'pid_callouts' attribute
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on 'time_limit' attribute
+# Changes   :   'pid_callouts' attribute
+# Returns   :   n/a
 sub ipc_pid_delete {
     my $self = shift;
     if ( $self->{ 'time_limit' } ) {
@@ -1069,11 +1047,11 @@ sub ipc_pid_delete {
 
 # Function
 # Puts the dependent files in a file names hash for 'x_stats' feature
-# Takes: non-empty ArrayRef(Str] of file names , the 0th file is a dependence
-# for the foillowing like 'index.tmpl' and the rest is 'header.tmpl',
-# 'footer.tmpl', 'body.tmpl', etc.
-# Chenges: package variable %xinc
-# Returns: n/a
+# Takes     :   non-empty ArrayRef(Str] of file names , the 0th file is a
+#               dependence for the foillowing like 'index.tmpl' and the rest
+#               is 'header.tmpl', 'footer.tmpl', 'body.tmpl', etc.
+# Chenges   :   package variable %xinc
+# Returns   :   n/a
 sub xinc_dependent {
     my $fn = shift;
 
@@ -1100,10 +1078,10 @@ sub xinc_dependent {
 # Caches result of a file parsing like a template object
 # For use in an application(s) that keeps template(s), configuration(s) or
 # other behaviorial ( but not-perl ) data in a files.
-# Takes: file name or ArrayRef[Str] of file names, and a code reference that
-# takes it as a parameter(s).
-# Changes: package variable %xinc
-# Returns: cached result value of a code reference called with such a
+# Takes     :   file name or ArrayRef[Str] of file names, and a code reference
+#               that takes it as a parameter(s).
+# Changes   :   package variable %xinc
+# Returns   :   cached result value of a code reference called with such a
 # parameter(s)
 sub xinc {
     my ( $fn => $cref, ) = @_;
@@ -1140,11 +1118,12 @@ sub xinc {
 # Object method
 # Removes modified files from cache of templates to be re-read and parsed
 # and/or executed anew on the next call of xinc() function in application(s)
-# Takes: n/a
-# Depends: on saved state 'x_stats', attribute 'x_stats_policy', ArrayRef(s)
-# contained as a values in a cache, the package variable %xinc
-# Changes: package variable %xinc
-# Returns: n/a
+# Takes     :   n/a
+# Depends   :   on saved state 'x_stats', attribute 'x_stats_policy',
+#               ArrayRef(s) contained as a values in a cache, the package
+#               variable %xinc
+# Changes   :   package variable %xinc
+# Returns   :   n/a
 sub clean_xinc_modified {
     my $self      = shift;
     my $old_stats = $self->get_state('x_stats');
@@ -1177,10 +1156,10 @@ sub clean_xinc_modified {
 # Function
 # Deletes an item from templates, (configs, etc.) cache top be re-read on the
 # next xinc() call from the application(s) with recursion on dependence(s)
-# Takes: item, scalar key of the cache
-# Depends: on package variable %xinc
-# Changes: package variable %xinc
-# Returns: n/a
+# Takes     :   item, scalar key of the cache
+# Depends   :   on package variable %xinc
+# Changes   :   package variable %xinc
+# Returns   :   n/a
 sub delete_xinc_item {
     my $item = shift;
     if ( defined $xinc{ $item } ) {
@@ -1194,10 +1173,10 @@ sub delete_xinc_item {
 
 # Object method
 # Reloads modified modules, by mean of %INC by default
-# Takes: script file name to be executed
-# Depends: on saved state 'stats', results of stat() of the files loaded in
-# %INC, attributes 'stats_policy' and 'reloader'
-# Returns: n/a
+# Takes     :   script file name to be executed
+# Depends   :   on saved state 'stats', results of stat() of the files loaded
+#               in %INC, attributes 'stats_policy' and 'reloader'
+# Returns   :   n/a
 sub clean_inc_modified {
     my ( $self, $sn ) = @_;
     my $old_stats = $self->get_state('stats');
@@ -1228,8 +1207,8 @@ sub clean_inc_modified {
 
 # Object method
 # Gets definity of a saved state
-# Takes: key to check if saved state was defined
-# Returns: if saved state was defined
+# Takes     :   key to check if saved state was defined
+# Returns   :   if saved state was defined
 sub defined_state {
     my ( $self, $key ) = @_;
     defined $$self{ 'state' }{ $key };
@@ -1237,14 +1216,14 @@ sub defined_state {
 
 # Object method
 # Gets a saved state
-# Takes: key of saved state
-# Returns: saved state
+# Takes     :   key of saved state
+# Returns   :   saved state
 sub get_state { my ( $self, $key ) = @_; $$self{ 'state' }{ $key }; }
 
 # Object method
 # Sets a saved state
-# Takes: key of a state to save
-# Returns: n/a
+# Takes     :   key of a state to save
+# Returns   :   n/a
 sub set_state {
     my ( $self, $key => $val ) = @_;
     $$self{ 'state' }{ $key } = $val;
@@ -1253,8 +1232,8 @@ sub set_state {
 # Static method
 # Makes fcgi scripts possible to get their fastcgi object
 # without setting spawn's callout attribute to reference with an eval() inside
-# Takes: nothing
-# Returns: $fcgi
+# Takes     :   n/a
+# Returns   :   $fcgi
 sub fcgi { return $fcgi }
 
 1;
