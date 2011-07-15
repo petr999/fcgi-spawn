@@ -3,50 +3,24 @@
 package Apache::Fake;
 use strict;
 use warnings;
-require 5.6.0;
+require 5.014;
 
 BEGIN {
     our $VERSION = '0.10';
-    foreach my $module (
-        @{  [   qw% Apache2/Response Apache2/RequestRec
-                    Apache2/RequestUtil Apache2/RequestIO APR/Pool APR/Table
-                    Apache2/SizeLimit ModPerl/RegistryLoader ModPerl/Registry Apache2/Const
-                    ModPerl ModPerl/Util Apache/Cookie Apache2/Cookie APR/Request
-                    APR/Request/Apache2 Apache2/Request ModPerl/Const APR/Date Apache2/Upload
-                    Apache Apache/Constants Apache/Request Apache/Log Apache/Table mod_perl
-                    Apache/Status Apache2/ServerUtil
-                    %
-            ]
-        }
-        )
-    {
+    my @modules = qw% Apache2/Response Apache2/RequestRec
+                    Apache2/ServerUtil mod_perl Apache2/RequestUtil
+                    Apache2/RequestIO APR/Pool APR/Table Apache2/SizeLimit
+                    ModPerl/RegistryLoader ModPerl/Registry Apache2/Const
+                    ModPerl ModPerl/Util Apache/Cookie Apache2/Cookie
+                    APR/Request APR/Request/Apache2 Apache2/Request
+                    ModPerl/Const APR/Date Apache2/Upload Apache
+                    Apache/Constants Apache/Request Apache/Log Apache/Table
+                    Apache/Status
+                    %;
+    foreach my $module ( @modules ) {
         $INC{ "$module.pm" } = $INC{ 'Apache/Fake.pm' };
     }
 }
-
-=pod
-
-=head1 NAME
-
-Apache::Fake - fake a mod_perl request object
-
-=head1 LICENSE
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-
-=cut
 
 1;
 
@@ -83,16 +57,17 @@ sub new {
     return bless { 'request' => $r, }, $class;
 }
 
-sub server_admin    { return $_[0]->{ 'request' }->{ 'ADMIN' }; }
-sub server_hostname { return $_[0]->{ 'request' }->{ 'HOST' }; }
-sub port            { return $_[0]->{ 'request' }->{ 'LOCAL_PORT' }; }
-sub is_virtual      { return $_[0]->{ 'request' }->{ 'VIRTUAL' }; }
-sub names           { return @{ $_[0]->{ 'request' }->{ 'ALIASES' } }; }
-sub dir_config      { return (shift)->{ 'request' }->dir_config(@_); }
-sub warn            { return (shift)->{ 'request' }->warn(@_); }
-sub log_error       { return (shift)->{ 'request' }->log_error(@_); }
-sub uid             { return getuid(); }
-sub gid             { return getgid(); }
+sub server_admin    { return    $_[0]->{ 'request' }->{ 'ADMIN' } }
+sub server_hostname { return    $_[0]->{ 'request' }->{ 'HOST' } }
+sub port            { return    $_[0]->{ 'request' }->{ 'LOCAL_PORT' } }
+sub is_virtual      { return    $_[0]->{ 'request' }->{ 'VIRTUAL' } }
+sub names           { return @{ $_[0]->{ 'request' }->{ 'ALIASES' } } }
+
+sub dir_config      { return (shift)->{ 'request' }->dir_config(@_) }
+sub warn            { return (shift)->{ 'request' }->warn(@_) }
+sub log_error       { return (shift)->{ 'request' }->log_error(@_) }
+sub uid             { return getuid() }
+sub gid             { return getgid() }
 
 sub loglevel {
     my ( $self, $level ) = @_;
@@ -562,9 +537,9 @@ use warnings;
 
 use HTTP::Date qw/str2time/;
 
-sub parse_http {
-    return 1_000_000 * str2time(shift);
-}
+# Takes     :   HTTP Date header value
+# Returns   :   unix timestamp in microseconds
+sub parse_http { return 1_000_000 * str2time(shift) }
 
 package APR::Request;
 use strict;
@@ -640,20 +615,12 @@ sub lookup_uri {
     my ( $self => $uri, ) = @_;
     my $sr = Apache::SubRequest->new( %{ $self }, );
     $self->warn( 'not yet implemented', );
-
-# TODO
-# emulate by setting $sr->{'PATH_INFO'}, {'FILE'} and {'URI'} and running through
-# most of new()
 }
 
 sub lookup_file {
     my ( $self => $file, ) = @_;
     my $sr = Apache::SubRequest->new( %{ $self }, );
     $self->warn( 'not yet implemented', );
-
-# TODO
-# emulate by setting $sr->{'PATH_INFO'}, {'FILE'} and {'URI'} and running through
-# most of new()
 }
 
 sub method {
@@ -698,25 +665,30 @@ sub hostname     { $_[0]->{ 'HOST' }; }
 sub request_time { $_[0]->{ 'TIME' }; }
 
 sub uri {
-    my ( $self => $uri, ) = @_;
+    my ( $self => $uri ) = @_;
     if ( defined $uri ) { $$self{ 'URI' } = $uri; }
     return $$self{ 'URI' };
 }
 
 sub filename {
-    my ( $self => $file, ) = @_;
+    my ( $self => $file ) = @_;
     if ( defined $file ) { $$self{ 'FILE' } = $file; }
     return $$self{ 'FILE' };
 }
 
 sub path_info {
-    my ( $self, $uri ) = @_;
+    my ( $self => $uri ) = @_;
     if ( defined $uri ) { $$self{ 'PATH_INFO' } = $uri; }
     return $$self{ 'PATH_INFO' };
 }
 
+# Object method
+# Gets QUERY args
+# Takes     :   optional value to set query args
+# Returns   :   in list context: unescaped elements of GET query string; in
+#               scalar context the GET query string as it is
 sub args {
-    my ( $self, $val ) = @_;
+    my ( $self => $val ) = @_;
     $$self{ 'ARGS' } = $val if defined $val;
     if (wantarray) {
         return map { unescape_url_info($_) } split /[=&;]/, $$self{ 'ARGS' },
@@ -728,7 +700,7 @@ sub args {
 }
 
 sub headers_in {
-    my ( $self => $key, ) = @_;
+    my ( $self => $key ) = @_;
     my $rv;
     return %{ $$self{ 'HEADERS_IN' } } if wantarray;
     if ( defined $key ) {
@@ -766,13 +738,18 @@ sub content {
     return undef;
 }
 
+# Object method
+# Reads the POST contents into string
+# Takes     :   buffer scalar to read into, count and offset to read
+# Changes   :   buffer scalar, an argument
+# Returns   :   n/a
 sub read {
     my ( $self, $buf, $cnt, $off, ) = @_;
 
     # From CGI.pm the buffer value is passed by dereference into this sub
     $buf = \$_[1];
 
-    $off ||= 0;
+    $off //= 0;
     $self->soft_timeout('read timed out');
 
     # While $ENV{ 'CONTENT_LENGTH' } bytes is not yet read
@@ -870,7 +847,7 @@ sub send_http_header {
 sub get_basic_auth_pw       { -1; }    # basic auth handled by webserver
 sub note_basic_auth_failure { }        # basic auth handled by webserver
 
-sub handler { 'perl-script'; }    # TODO: maybe emulate some common handlers
+sub handler { 'perl-script'; }
 
 sub notes {
     my ( $self, $key, $value, ) = @_;
@@ -1034,15 +1011,11 @@ sub send_fd {
 sub internal_redirect {
     my ( $self => $place, ) = @_;
     $self->warn( "not implemented yet!", );
-
-    # TODO!
 }
 
 sub custom_response {
     my ( $self => $uri, ) = @_;
     $self->warn( "not implemented yet!", );
-
-    # TODO!
 }
 
 sub soft_timeout {
@@ -1165,172 +1138,6 @@ sub import {
         $with_config_file = 1;
     }
 }
-
-=pod
-
-=head1 VERSION
-
-This document refers to version 0.10 of Apache::Fake, released
-February 1, 2002.
-
-=head1 SYNOPSIS
-
-Case 1: Using a CGI script as Apache SetHandler
-
-/cgi-bin/nph-modperl-emu.cgi:
-
-    #!/usr/bin/perl
-    use lib '/some/private/lib_path';
-    use Apache::Fake;
-    new Apache::Fake('httpd_conf' => '/some/private/httpd.conf',
-      'dir_conf' => '.htaccess.emu');
-
-
-In your httpd.conf or .htaccess, add something like this:
-
-    Action modperl-emu /cgi-bin/nph-modperl-emu.cgi
-    SetHandler modperl-emu
-
-Access page just like under mod_perl. (http://host/real/page/here.html)
-
-
-Case 2: Exclusively using PATH_INFO
-
-/cgi-bin/nph-modperl-emu.cgi:
-
-  #!/usr/bin/perl
-  use lib '/some/private/lib_path';
-  use Apache::Fake;
-
-        new Apache::Fake('httpd_conf' => '/some/private/httpd.conf',
-        'dir_conf' => '.htaccess.emu',
-        'handler_cgi' => '/cgi-bin/nph-modperl-emu.cgi',
-        'virtual_root' => '/some/private/document_root');
-
-Access page like: http://host/cgi-bin/nph-modperl-emu.cgi/real/page/here.html
-
-
-=head1 DESCRIPTION
-
-This module fakes a mod_perl request object using the Common Gateway
-Interface. Everything that works with mod_perl should work with Apache::Fake
-as well. Apache::Fake parses apache-style config files for any relevant settings.
-A working mod_perl configuration should work without any modifications given all
-relevant config files are found. If not, you've found a bug.
-
-Apache::Fake currently emulates the following modules: Apache, Apache::Request,
-Apache::Table, Apache::Log, mod_perl. Re-use-ing these modules will do no harm,
-since Apache::Fake sets %INC for these modules.
-
-For documentation, refer to the mod_perl documentation.
-
-Things planned, but not yet working, are: Subrequests, other handlers than
-PerlHandler, internal_redirect, custom_response, $r->handler().
-
-Things that never will work are: $->get_basic_auth_pw,
-$r->note_basic_auth_failure.
-
-=head1 CONSTRUCTOR
-
-=over 4
-
-=item new Apache::Fake([option => value, ...])
-
-The constructor will parse an apache-style config file to retrieve any
-relevant settings, like PerlHandler and PerlSetVar. It will also obey
-local .htaccess-style config files. You can use the 'real' config files
-or provide your own, stripped down versions. The most useful configuration
-is to use the 'real' httpd.conf, but fake .htaccess files, so you can
-provide PerlSetVar and PerlHandler even if the web server does not
-recognize these keywords.
-
-The following settings are used:
-
-=over 4
-
-=item httpd_conf => '/etc/apache/httpd.conf'
-
-Path to the main config file. Default is undef, i.e. not used. Neccessary
-for some subrequest functions.
-
-=item dir_conf => '.htaccess'
-
-File name of the per-directory config file. Default is '.htaccess'. Only
-PerlSetVar, PerlModule and PerlHandler are used. <Files> sections are
-currently ignored.
-
-Caveat: The algorithm searching for a matching file will ascend the
-physical path, not the logical. So it might miss some files, and find
-additional ones. This can be considered a feature.
-
-
-One of these two files is neccessary, since you need a PerlHandler
-directive.
-
-=item handler_cgi => '/cgi-bin/nph-mod_perl-handler.cgi'
-
-URI of the handler script. If this parameter is given, 'virtual_root' must
-be set as well, and Apache::Fake operates in PATH_INFO mode. In this mode,
-all URLs go like: http://host/cgi-bin/nph-mod_perl-handler.cgi/real/path.
-
-=item virtual_root => '/home/siteX/modperl_docs'
-
-Path to the virtual root directory of your mod_perl documents/scripts. This
-directory contains all files accessed through Apache::Fake. It should not be
-inside your normal document root.
-
-=back
-
-=back
-
-=head1 WARNING
-
-This is alpha-quality software. It works for me and for some moderately complex
-perl modules (the HTML::Mason suite). Not every aspect was tested or checked for
-strict compatibility to mod_perl 1.27. Please report any problems you find via
-http://rt.cpan.org.
-
-=head1 TO DO
-
-=over 4
-
-=item * Emulate Perl*Handlers by calling them in sequence
-
-=item * Emulate handler() by emulating some common handlers
-
-=item * Emulate subrequests and redirects by doing our own URI->filename mapping. Then
-PerlTransHandlers will work, too.
-
-=item * Emulate custom_response via previous mapping
-
-=item * Emulate internal redirects via previous mapping
-
-=back
-
-=head1 REQUIRED
-
-perl 5.6.0, Apache::ConfigFile, CGI, HTTP::Status
-
-=head1 ACKNOWLEDGEMENTS
-
-This module was inspired by a posting on the HTML::Mason mailing list by
-Alexey Tourbin (alexey_tourbin@mail.ru) and Apache::Emulator by Nigel
-Wetters (nwetters@cpan.org), both of which were very limited in function.
-Some ideas have been borrowed from both sources. 
-
-=head1 AUTHOR
-
-Jörg Walter E<lt>ehrlich@ich.bin.kein.hoschi.deE<gt>.
-
-=head1 VERSION
-
-0.10
-
-=head1 SEE ALSO
-
-L<Apache>, L<Apache::Request>
-
-=cut
 
 sub new {
     my ( $caller => %conf, ) = @_;
@@ -1575,3 +1382,225 @@ sub new {
 }
 
 1;
+
+__END__
+
+=pod
+
+=head1 NAME
+
+Apache::Fake - simulate some of the mod_perl API
+
+=head1 VERSION
+
+This document refers to version 0.11 of Apache::Fake, released
+for L<FCGI::Spawn> v0.17.
+
+=head1 SYNOPSIS
+
+Case 1: Having a GET request in mind:
+
+    $ REQUEST_METHOD=GET QUERY_STRING='abcd=efgh&ijkl=m+nop'\
+    > perl -Mstrict -MApache::Fake -wE\
+    > 'say scalar Apache2::RequestUtil->request->args;'
+    abcd=efgh&ijkl=m+nop
+    $
+
+Case 2: Having a POST request in mind:
+
+    $ echo -ne 'abcd=efgh&ijkl=m+nop' | \
+    REQUEST_METHOD=POST \
+    CONTENT_TYPE='application/x-www-form-urlencoded' \
+    CONTENT_LENGTH=20 \
+    perl -Mstrict -Ilib -MApache::Fake -MData::Dumper -wE \
+    'my $buf=""; Apache2::RequestUtil->request->read( \
+    $buf => $ENV{ 'CONTENT_LENGTH' } ); say $buf;'
+    abcd=efgh&ijkl=m+nop
+    $
+
+Both of them are the what is being done by CGI.pm when it
+meets mod_perl environment
+
+Case 3: Some request functions that your application(s) may happen to use
+
+Thanks WebGUI.Org for inspiration to show you this:
+
+    # Add this somewhere in your application
+    use Apache::Fake;
+
+    # And after that this will work for you just like it's a real mod_perl
+    use Apache2::RequestUtil;
+    use APR::Date;
+    my $modified =
+        Apache2::RequestUtil->request->headers_in->{'If-Modified-Since'};
+    return 1 if ($modified eq "");
+    $modified = APR::Date::parse_http($modified);
+
+Case 2: Using a CGI script as Apache SetHandler
+
+/cgi-bin/nph-modperl-emu.cgi:
+
+    #!/usr/bin/perl
+    use lib '/some/private/lib_path';
+    use Apache::Fake;
+    new Apache::Fake('httpd_conf' => '/some/private/httpd.conf',
+      'dir_conf' => '.htaccess.emu');
+
+
+In your httpd.conf or .htaccess, add something like this:
+
+    Action modperl-emu /cgi-bin/nph-modperl-emu.cgi
+    SetHandler modperl-emu
+
+Access page just like under mod_perl. (http://host/real/page/here.html)
+
+
+Case 2: Exclusively using PATH_INFO
+
+/cgi-bin/nph-modperl-emu.cgi:
+
+  #!/usr/bin/perl
+  use lib '/some/private/lib_path';
+  use Apache::Fake;
+
+        new Apache::Fake('httpd_conf' => '/some/private/httpd.conf',
+        'dir_conf' => '.htaccess.emu',
+        'handler_cgi' => '/cgi-bin/nph-modperl-emu.cgi',
+        'virtual_root' => '/some/private/document_root');
+
+Access page like: http://host/cgi-bin/nph-modperl-emu.cgi/real/page/here.html
+
+
+=head1 DESCRIPTION
+
+This module fakes a mod_perl request object using the Common Gateway
+Interface. Everything that works with mod_perl should work with Apache::Fake
+as well. Apache::Fake parses apache-style config files for any relevant settings.
+A working mod_perl configuration should work without any modifications given all
+relevant config files are found. If not, you've found a bug.
+
+Apache::Fake currently emulates the following modules: Apache, Apache::Request,
+Apache::Table, Apache::Log, mod_perl. Re-use-ing these modules will do no harm,
+since Apache::Fake sets %INC for these modules.
+
+For documentation, refer to the mod_perl documentation.
+
+Things planned, but not yet working, are: Subrequests, other handlers than
+PerlHandler, internal_redirect, custom_response, $r->handler().
+
+Things that never will work are: $->get_basic_auth_pw,
+$r->note_basic_auth_failure.
+
+=head1 CONSTRUCTOR
+
+=over 4
+
+=item new Apache::Fake([option => value, ...])
+
+The constructor will parse an apache-style config file to retrieve any
+relevant settings, like PerlHandler and PerlSetVar. It will also obey
+local .htaccess-style config files. You can use the 'real' config files
+or provide your own, stripped down versions. The most useful configuration
+is to use the 'real' httpd.conf, but fake .htaccess files, so you can
+provide PerlSetVar and PerlHandler even if the web server does not
+recognize these keywords.
+
+The following settings are used:
+
+=over 4
+
+=item httpd_conf => '/etc/apache/httpd.conf'
+
+Path to the main config file. Default is undef, i.e. not used. Neccessary
+for some subrequest functions.
+
+=item dir_conf => '.htaccess'
+
+File name of the per-directory config file. Default is '.htaccess'. Only
+PerlSetVar, PerlModule and PerlHandler are used. <Files> sections are
+currently ignored.
+
+Caveat: The algorithm searching for a matching file will ascend the
+physical path, not the logical. So it might miss some files, and find
+additional ones. This can be considered a feature.
+
+
+One of these two files is neccessary, since you need a PerlHandler
+directive.
+
+=item handler_cgi => '/cgi-bin/nph-mod_perl-handler.cgi'
+
+URI of the handler script. If this parameter is given, 'virtual_root' must
+be set as well, and Apache::Fake operates in PATH_INFO mode. In this mode,
+all URLs go like: http://host/cgi-bin/nph-mod_perl-handler.cgi/real/path.
+
+=item virtual_root => '/home/siteX/modperl_docs'
+
+Path to the virtual root directory of your mod_perl documents/scripts. This
+directory contains all files accessed through Apache::Fake. It should not be
+inside your normal document root.
+
+=back
+
+=back
+
+=head1 WARNING
+
+This is alpha-quality software. It works for me and for some moderately complex
+perl modules (the HTML::Mason suite). Not every aspect was tested or checked for
+strict compatibility to mod_perl 1.27. Please report any problems you find via
+http://rt.cpan.org.
+
+=head1 TO DO
+
+=over 4
+
+=item * Emulate Perl*Handlers by calling them in sequence
+
+=item * Emulate handler() by emulating some common handlers
+
+=item * Emulate subrequests and redirects by doing our own URI->filename mapping. Then
+PerlTransHandlers will work, too.
+
+=item * Emulate custom_response via previous mapping
+
+=item * Emulate internal redirects via previous mapping
+
+=back
+
+=head1 REQUIRED
+
+perl 5.6.0, Apache::ConfigFile, CGI, HTTP::Status
+
+=head1 ACKNOWLEDGEMENTS
+
+This module was inspired by a posting on the HTML::Mason mailing list by
+Alexey Tourbin (alexey_tourbin@mail.ru) and Apache::Emulator by Nigel
+Wetters (nwetters@cpan.org), both of which were very limited in function.
+Some ideas have been borrowed from both sources. 
+
+=head1 AUTHOR
+
+Jörg Walter E<lt>ehrlich@ich.bin.kein.hoschi.deE<gt>.
+
+=head1 LICENSE
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+
+=head1 SEE ALSO
+
+L<Apache>, L<Apache::Request>
+
+=cut

@@ -23,7 +23,7 @@ sub make_cgi {
     croak unless defined($cgi) and length($cgi);
     my $cgi_dir      = dirname($cgi);
     my $cgi_contents = \<<EOT;
-#!$^X
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
@@ -39,7 +39,7 @@ EOT
 
     my $mod_fn = join '/', dirname($cgi), 'StatsMod.pm';
     my $mod_contents = \<<EOM;
-#!$^X
+#!/usr/bin/env perl
 
 package StatsMod;
 

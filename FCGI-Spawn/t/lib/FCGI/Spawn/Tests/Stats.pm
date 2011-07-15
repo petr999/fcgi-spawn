@@ -20,7 +20,7 @@ sub make_cgi {
     my $cgi = $$env{ 'SCRIPT_FILENAME' };
     croak unless defined($cgi) and length($cgi);
     my $cgi_contents = \<<EOT;
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;

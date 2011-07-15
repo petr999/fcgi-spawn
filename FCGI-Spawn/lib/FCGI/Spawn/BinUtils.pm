@@ -20,23 +20,27 @@ const(
 
 # Inits shared memory variable to be used for variables shareed among forks,
 # needed for time_limit feature
-# Takes   :     reference to a scalar to be initialized, and a HashRef filled
+# Takes     :   reference to a scalar to be initialized, and a HashRef filled
 #               with 'mm_size', 'mm_file' attributes for file size in bytes
 #               and its name, and 'uid' for mm_permission()
-# Depends :     on IPC::MMA and if current user id is 0 for mm_premission()
+# Depends   :   on IPC::MMA and if current user id is 0 for mm_premission()
 #               to succeed
-# Changes :     initialized MM variable in ${ $_[0] }
-# Throws  :     if IPC::MMA not found or if user id is 0 but mm_permission did
+# Changes   :   initialized MM variable in ${ $_[0] }
+# Throws    :   if IPC::MMA not found or if user id is 0 but mm_permission did
 #               not succeed.
-# Returns :     n/a
+# Returns   :   n/a
 sub _init_ipc {
     my ( $ipc_ref => $mm_scratch ) = @_;
-    unless ( defined $$ipc_ref ) {
+    unless ( defined $$ipc_ref ) { # keep from second time
+
+        # Create sharing
         croak("IPC::MMA: $@ $!") unless eval { require IPC::MMA; 1; };
         my $rv = $$ipc_ref =
             IPC::MMA::mm_create( map { $mm_scratch->{ $_ } }
                 'mm_size' => 'mm_file', );
         croak("IPC::MMA init: $@ $!") unless $rv;
+
+        # mm_permission() stuff
         my $uid = $mm_scratch->{ 'uid' };
         unless ($UID) {
             $rv = not IPC::MMA::mm_permission(
@@ -52,31 +56,39 @@ sub _init_ipc {
 }
 
 # Makes a variable shared among forks
-# Takes   :     ArrayRef[Ref] of two refs: reference to a variable to
+# Takes     :   ArrayRef[Ref] of two refs: reference to a variable to
 #               share, it is a reference to SCALAR, ARRAY, or HASH, and a
 #               reference to shared memory variable initialized with
 #               _init_ipc(); the second parameter $_[1]is a HashRef the same
 #               as for _init_ipc()
-# Changes :     references in the first argument, $_[0]
-# Throws  :     if first element of the ArrayRef the first argument is not a
+# Changes   :   references in the first argument, $_[0]
+# Throws    :   if first element of the ArrayRef the first argument is not a
 #               reference
-# Returns :     n/a
+# Returns   :   n/a
 sub make_shared : Export( :scripts :testutils ) {
     my ( $refs, $mm_scratch, ) = @_;
     my ( $ref, $ipc_ref ) = @$refs;
+
+    # Init shared vars
     &_init_ipc( $ipc_ref => $mm_scratch );
     my $type = lc ref $ref;
     croak("Not a ref: $ref") unless $type;
+
+    # Define method and class
     my $method    = "mm_make_$type";
     my $tie_class = 'IPC::MMA::' . ucfirst $type;
+
+    # use them both
     my $ipc_var   = $IPC::MMA::{ $method }->($$ipc_ref);
     tie( ( $type eq 'hash' ) ? %$ref : $$ref, $tie_class, $ipc_var );
 }
 
-# Makes subroutine to kill a process with a signal but kills with TERM if the
-# signal is INT.
-# Takes   :     signal name and process id.
-# Returns :     sub to be assinged as a %SIG value(s).
+# Makes subroutine to kill a a given process with a  given  signal  but  kills
+# with TERM if the signal is INT. Used to redirect TERM in the fcgi_spawn main
+# loop to the spoawned pid and to make the incoming INT to be the TERM sent to
+# that pid
+# Takes     :   signal name and process id.
+# Returns   :   sub to be assinged as a %SIG value(s).
 sub sig_handle : Export( :scripts ) {
     my ( $sig, $pid ) = @_;
     return sub {
@@ -86,25 +98,31 @@ sub sig_handle : Export( :scripts ) {
 }
 
 # (Re)opens a log, changes standard handles to it.
-# Takes   :     log file name
-# Changes :     STDIN handle to < /dev/null
-# Throws  :     if log file can not be open or /dev/null does not exist
-# Returns :     n/a
+# Takes     :   log file name
+# Changes   :   STDIN handle to < /dev/null
+# Throws    :   if log file can not be open or /dev/null does not exist
+# Returns   :   n/a
 sub re_open_log : Export( :scripts ) {
     my $log_file = shift;
+
+    # Closing standard output handles
     close STDERR if defined fileno STDERR;
     close STDOUT if defined fileno STDOUT;
+
+    # Opening log anew
     croak("Opening log $log_file: $!")
         unless open( STDERR, ">>", $log_file );
     croak("Opening log $log_file: $!")
         unless open( STDOUT, ">>", $log_file );
+
+    # Closing current input
     croak("Can't read /dev/null: $!")
         unless open( STDIN, "<", '/dev/null' );
 }
 
 # Prints help and exits
-# Takes   :     n/a
-# Returns :     n/a
+# Takes     :   n/a
+# Returns   :   n/a
 sub print_help_exit : Export( :scripts ) {
     print <<EOT;
 Usage:
@@ -130,18 +148,18 @@ EOT
 }
 
 # Defines if socket is a TCP socket, can return host and port parts
-# Takes   :     string to mean a socket, like 'host.net:5555', '1.2.3.4:5556'
+# Takes     :   string to mean a socket, like 'host.net:5555', '1.2.3.4:5556'
 #               or 'host.com:5557'
-# Returns :     in scalar context: TCP socket; in array context: host/addr
+# Returns   :   in scalar context: TCP socket; in array context: host/addr
 #               and port parts
 sub is_sock_tcp : Export( :modules :testutils ) {
     my $rv = shift =~ m/^([^:]+):([^:]+)$/;
     wantarray ? ( $1 => $2, ) : $rv;
 }
 
-# Takes   :     process id
-# Depends :     on waitpid with WNOHANG and a kill 0 implementation in OS;
-# Returns :     Boolean is process dead
+# Takes     :   process id
+# Depends   :   on waitpid with WNOHANG and a kill 0 implementation in OS;
+# Returns   :   Boolean is process dead
 sub is_process_dead : Export( :scripts :testutils ) {
     my $pid = shift;
     waitpid $pid => WNOHANG;
@@ -151,8 +169,8 @@ sub is_process_dead : Export( :scripts :testutils ) {
 }
 
 # Same as is_sock_tcp() but returns always array anbd has additional chacks
-# Takes   :     Str the socket name
-# Returns :     Array (host/addr) and port from the socket name
+# Takes     :   Str the socket name
+# Returns   :   Array (host/addr) and port from the socket name
 sub addr_port : Export( :testutils ) {
     my $sock_name = shift;
     my @rv        = is_sock_tcp( $sock_name, );
@@ -169,10 +187,10 @@ sub addr_port : Export( :testutils ) {
 
 # Static function
 # Turns the stat() file attributes from names to numbers
-# Takes   :     optional name(s) of policies to take into account when decide
+# Takes     :   optional name(s) of policies to take into account when decide
 #               if file changed or not
-# Depends :     on $POLICIES constant
-# Returns :     array reference filled with numbers corresponding policy(ies)'
+# Depends   :   on $POLICIES constant
+# Returns   :   array reference filled with numbers corresponding policy(ies)'
 #               names
 sub statnames_to_policy : Export( :modules :testutils ) {
     my $rv =

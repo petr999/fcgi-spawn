@@ -50,7 +50,7 @@ const(
         },
         map( { $_ => { qw/extends spawnable/, }; }
             qw/clean_main log_rotate max_requests pre_load save_env un_clean_main
-                call_out un_save_env/,
+                call_out un_save_env mod_perl_handlers stats_deed/,
         ),
         'fcgi' => {
             qw/extends spawnable/,
@@ -84,10 +84,6 @@ const(
                         time_limit_kill_parallel/,
                 ],
             },
-        },
-        'mod_perl_handlers' => {
-            qw/extends spawnable/,
-            'init_hash' => { 'push_tests' => [], },
         },
     }
 );

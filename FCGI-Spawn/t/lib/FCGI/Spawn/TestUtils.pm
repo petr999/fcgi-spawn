@@ -34,7 +34,8 @@ const(
     my $conf_presets => {
         'call_out' => { 'cmd_args' => [ qw/-pl -e/, ], },
         map({ $_ => \%general_preset, } qw/general un_clean_main stats x_stats
-                log_rotate max_requests fcgi pre_load time_limit save_env/,
+                log_rotate max_requests fcgi pre_load time_limit save_env
+				stats_deed/,
         ),
         'mod_perl_handlers' => { 'cmd_args' => ['-pl'], },
         'chroot'            => {

@@ -19,7 +19,7 @@ sub make_cgi {
     croak unless defined($cgi) and length($cgi);
     my $cgi_dir      = dirname($cgi);
     my $cgi_contents = \<<EOT;
-#!$^X
+#!/usr/bin/env perl
 
 use strict;
 use warnings;

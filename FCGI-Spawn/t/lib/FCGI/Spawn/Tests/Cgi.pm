@@ -14,10 +14,9 @@ use FCGI::Spawn::TestUtils;
 
 extends('FCGI::Spawn::Tests');
 
-has( 'env' => (qw/is ro    isa HashRef   required 1 lazy 1 builder make_env/)
-);
+has( 'env' => (qw/is ro isa HashRef required 1 lazy 1 builder make_env/));
 has('content' => (
-        qw/is ro    isa ScalarRef   required 1 lazy 1 builder make_content/,
+        qw/is ro isa ScalarRef required 1 lazy 1 builder make_content/,
     )
 );
 has( qw/is_response_json    is ro isa Int default 1/, );

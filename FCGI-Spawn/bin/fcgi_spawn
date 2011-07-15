@@ -349,7 +349,7 @@ if( $spawn_pid ){
 $conf->read_fsp_config_file( $config_path );
 
 eval { require FCGI::Spawn; FCGI::Spawn->import;
-1; } or croak $!;
+1; } or croak "$@ $!";
 
 my $spawn = FCGI::Spawn->new( $conf, )
   or croak "$@ $!";
