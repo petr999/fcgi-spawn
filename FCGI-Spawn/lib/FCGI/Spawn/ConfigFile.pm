@@ -45,4 +45,11 @@ sub assign_pair {
     $self->{ $key } = ( @$val > 1 ) ? $val : shift @$val;
 }
 
+sub set_pid_callouts { $_[0]->{'pid_callouts'} = $_[1] }
+sub set_time_limit   { $_[0]->{'time_limit'}   = $_[1] }
+sub set_sock_name    { $_[0]->{'sock_name'}    = $_[1] }
+
+sub get_pid_callouts { return $_[0]->{'pid_callouts'}    }
+sub get_chroot_path  { return $_[0]->{'pid_chroot_path'} }
+
 1;

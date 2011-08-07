@@ -180,6 +180,8 @@ use warnings;
 
 our $MAX_UNSHARED_SIZE;
 
+sub set_max_unshared_size{}
+
 1;
 
 package ModPerl::RegistryLoader;
@@ -466,12 +468,12 @@ package Apache2::Const;
 use strict;
 use warnings;
 
-use Apache::Constants qw/:common :http/;
-our @ISA = qw/Apache::Constants/;
+use base qw/Apache::Constants/;
 
 sub import {
-    if ( $_[0] eq '-compile' ) {
-        shift;
+    my ($self => $action) = (shift, shift);
+    if ( $action eq '-compile' ) {
+        Apache::Constants->import(@_);
     }
 }
 
@@ -1393,8 +1395,8 @@ Apache::Fake - simulate some of the mod_perl API
 
 =head1 VERSION
 
-This document refers to version 0.11 of Apache::Fake, released
-for L<FCGI::Spawn> v0.17.
+This document refers to version 0.11 of Apache::Fake, to be released for
+L<FCGI::Spawn> v0.17.
 
 =head1 SYNOPSIS
 
@@ -1577,7 +1579,7 @@ perl 5.6.0, Apache::ConfigFile, CGI, HTTP::Status
 This module was inspired by a posting on the HTML::Mason mailing list by
 Alexey Tourbin (alexey_tourbin@mail.ru) and Apache::Emulator by Nigel
 Wetters (nwetters@cpan.org), both of which were very limited in function.
-Some ideas have been borrowed from both sources. 
+Some ideas have been borrowed from both sources.
 
 =head1 AUTHOR
 

@@ -274,8 +274,12 @@ if( $conf_moose ){ $conf_class .= "::Moose";
     FCGI::Spawn::ConfigFile->import; 1; }
 }
 my $conf = $conf_class -> new();
-my $gid = getgrnam( $group ); croak "Get ( probably non-existent ) group $group: $!" if $gid == 0;
-my $uid = getpwnam( $user );  croak "Get ( probably non-existent ) user $user: $!" if $uid == 0;
+my $gid = getgrnam( $group );
+croak "Get ( probably non-existent ) group $group: $!"
+    if $gid == 0;
+my $uid = getpwnam( $user );
+croak "Get ( probably non-existent ) user $user: $!"
+    if $uid == 0;
 
 my( $shared, $ipc ); $shared={};
 
