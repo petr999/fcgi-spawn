@@ -472,7 +472,7 @@ use base qw/Apache::Constants/;
 
 sub import {
     my ($self => $action) = (shift, shift);
-    if ( $action eq '-compile' ) {
+    if ( defined($action) and $action eq '-compile' ) {
         Apache::Constants->import(@_);
     }
 }
@@ -757,9 +757,9 @@ sub read {
     # While $ENV{ 'CONTENT_LENGTH' } bytes is not yet read
     while ( $cnt > 0 ) {
         my $len = read( STDIN, $$buf, $cnt, $off + length $$buf );
-        if ( $len <= 0 ) { $$self{ 'ABORTED' } = 1 }
-        croak( 'read error' . " $len bytes of $cnt ($buf)" ) if $len <= 0;
-        $cnt -= $len;
+        if ( $len < 0 ) { $$self{ 'ABORTED' } = 1 }
+        croak( 'read error' . " $len bytes of $cnt ($buf)" ) if $len < 0;
+        $cnt = $len ? ($cnt - $len) : 0;
     }
 }
 
