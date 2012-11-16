@@ -16,13 +16,15 @@ use warnings;
 use Test::Most qw/bail/;    # BAIL_OUT() on any failure
 
 # Loads module to test
-use_ok( 'FCGI::Spawn::ConfigFile' );
+use_ok('FCGI::Spawn::ConfigFile');
 
 ### MAIN ###
 # Require   :   Test::Most, FCGI::Spawn::ConfigFile
 #
 # Test if config file object creates
-ok( my $conf = FCGI::Spawn::ConfigFile->new(), 'Config file object creation', );
+ok( my $conf = FCGI::Spawn::ConfigFile->new(),
+    'Config file object creation',
+);
 
 # TODO put config file for tests
 # Test reading configuration from file

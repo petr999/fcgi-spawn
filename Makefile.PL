@@ -9,13 +9,18 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
-WriteMakefile
-  (NAME         => 'FCGI::Spawn',
-   VERSION_FROM => 'lib/FCGI/Spawn.pm',
-   DISTNAME     => 'FCGI-Spawn',
-   ABSTRACT  => 'FastCGI server for CGI-like applications multiprocessing',
-   AUTHOR    => 'Peter V. Vereshagin <peter@vereshagin.org>',
-   PREREQ_PRINT  =>  1,
-   EXE_FILES    => [ 'bin/fcgi_spawn' ],
-   PREREQ_PM    => {  'FCGI::ProcManager'  =>  0, },
- );
+WriteMakefile(
+    NAME         => 'FCGI::Spawn',
+    VERSION_FROM => 'lib/FCGI/Spawn.pm',
+    DISTNAME     => 'FCGI-Spawn',
+    ABSTRACT => 'FastCGI server for CGI-like applications multiprocessing',
+    AUTHOR   => 'Peter V. Vereshagin <peter@vereshagin.org>',
+    PREREQ_PRINT => 1,
+    EXE_FILES    => ['bin/fcgi_spawn'],
+    PREREQ_PM    => {
+        'FCGI::ProcManager' => 0,
+        'English' => 0,
+        'POSIX' => 0,
+        'Carp' => 0,
+    },
+);

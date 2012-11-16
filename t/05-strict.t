@@ -25,4 +25,4 @@ const $Test::Strict::TEST_WARNINGS => 1;
 ### MAIN ###
 # Require   :   Test::Strict
 #
-all_perl_files_ok( qw/lib t/ ); # finlalizes the plan
+all_perl_files_ok(qw/lib t/);    # finlalizes the plan

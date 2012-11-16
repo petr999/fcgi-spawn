@@ -173,214 +173,264 @@ use FCGI::Spawn::ConfigFile;
 use FCGI::Spawn::BinUtils qw/init_pid_callouts_share sig_handle re_open_log/;
 
 our $OURS = {};
-my( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
-my( $preload, $no_detach, $time_limit, $soft_tl, ) = ( 0, 0, 60, 1, );
-my( $mm_file, $mm_size ) = ( '/tmp/fcgi_spawn_scoreboard.lck', 65535 );
+my ( $config_path, $pid_file, $log_file, $user, $group, $redefine_exit, );
+my ( $preload, $no_detach, $time_limit, $soft_tl, ) = ( 0, 0, 60, 1, );
+my ( $mm_file, $mm_size ) = ( '/tmp/fcgi_spawn_scoreboard.lck', 65535 );
 
-unless( scalar @ARGV ){ print "Usage help: $0 -h\n"; CORE::exit;
-}
-while( my $arg0 = shift @ARGV ){
-  if      ( $arg0 eq '-c'     ){ $config_path           = shift @ARGV;
-  } elsif  ( $arg0 eq '-p'    ){ $pid_file               = shift @ARGV;
-  } elsif  ( $arg0 eq '-l'    ){ $log_file               = shift @ARGV;
-  } elsif  ( $arg0 eq '-u'    ){ $user                   = shift @ARGV;
-  } elsif  ( $arg0 eq '-g'    ){ $group                 = shift @ARGV;
-  } elsif  ( $arg0 eq '-s'    ){ $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
-  } elsif  ( $arg0 eq '-t'    ){ $time_limit = shift @ARGV;
-  } elsif  ( $arg0 eq '-stl'  ){ $soft_tl = shift @ARGV;
-  } elsif  ( $arg0 eq '-e'    ){ $redefine_exit = 1;
-  } elsif  ( $arg0 eq '-pl'   ){ $preload = 1;
-  } elsif  ( $arg0 eq '-nd'   ){ $no_detach = 1;
-  } elsif  ( grep { $arg0 eq $_ }( '-h', '-?', ) ){
-    print "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
-          ."\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
-          ."\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n"
-          ."\t-nd\t\tdo not detach from console\n\t-t NN\t\tset callout time limit to NN seconds"
-            ." ( 60 by default, 0 disables feature )\n"
-          ."\t-stl\t\twait NN seconds for called out process to terminate by time limit before kill it"
-            ." ( 1 by default, 9 disables the feature )\n"
-          ."\t-mmf\t\tname of the lock file for the -t feature\n"
-          ."\t-mms\t\tsize of the shared memory segment for the -t feature\n";
-          ;
+unless ( scalar @ARGV ) {
+    print "Usage help: $0 -h\n";
     CORE::exit;
-  }
+}
+while ( my $arg0 = shift @ARGV ) {
+    if ( $arg0 eq '-c' ) {
+        $config_path = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-p' ) {
+        $pid_file = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-l' ) {
+        $log_file = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-u' ) {
+        $user = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-g' ) {
+        $group = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-s' ) {
+        $ENV{FCGI_SOCKET_PATH} = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-t' ) {
+        $time_limit = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-stl' ) {
+        $soft_tl = shift @ARGV;
+    }
+    elsif ( $arg0 eq '-e' ) {
+        $redefine_exit = 1;
+    }
+    elsif ( $arg0 eq '-pl' ) {
+        $preload = 1;
+    }
+    elsif ( $arg0 eq '-nd' ) {
+        $no_detach = 1;
+    }
+    elsif ( grep { $arg0 eq $_ } ( '-h', '-?', ) ) {
+        print
+            "Usage:\n\t-h, -?\t\tdisplay this help\n\t-c <config path>\tpath to the config file(s)\n\t-l\t\tlog file\n\t-p\t\tpid file\n"
+            . "\t-u\t\tsystem user name\n\t-g\t\tsystem group name\n\t-s\t\tsocket name with full path\n"
+            . "\t-e\t\tredefine exit builtin perl function\n\t-pl\t\tevaluate the preload scripts\n"
+            . "\t-nd\t\tdo not detach from console\n\t-t NN\t\tset callout time limit to NN seconds"
+            . " ( 60 by default, 0 disables feature )\n"
+            . "\t-stl\t\twait NN seconds for called out process to terminate by time limit before kill it"
+            . " ( 1 by default, 9 disables the feature )\n"
+            . "\t-mmf\t\tname of the lock file for the -t feature\n"
+            . "\t-mms\t\tsize of the shared memory segment for the -t feature\n";
+        CORE::exit;
+    }
 }
 
-BEGIN{
-  $ENV{FCGI_SOCKET_PATH} = "/tmp/spawner.sock" unless defined $ENV{FCGI_SOCKET_PATH};
-  if( grep { '-e' eq $_  } @ARGV ){
-    my $cref = sub {
-      if( 'FCGI::ProcManager' eq scalar caller ){
-        CORE::exit @_;
-      } else {
-        if( $^V lt v5.12.0 ){
-          no warnings;
-          last CALLED_OUT;
-        } else {
-          goto CALLED_OUT;
+BEGIN {
+    $ENV{FCGI_SOCKET_PATH} = "/tmp/spawner.sock"
+        unless defined $ENV{FCGI_SOCKET_PATH};
+    if ( grep { '-e' eq $_ } @ARGV ) {
+        my $cref = sub {
+            if ( 'FCGI::ProcManager' eq scalar caller ) {
+                CORE::exit @_;
+            }
+            else {
+                if ( $^V lt v5.12.0 ) {
+                    no warnings;
+                    last CALLED_OUT;
+                }
+                else {
+                    goto CALLED_OUT;
+                }
+            }
+        };
+        if ( $^V lt v5.12.0 ) {
+            *CORE::GLOBAL::exit = $cref;
+            my $rv = *CORE::GLOBAL::exit;
         }
-      }
-    };
-    if( $^V lt v5.12.0 ){
-      *CORE::GLOBAL::exit = $cref;
-      my $rv = *CORE::GLOBAL::exit;
-    } else {
-      *main::exit = $cref;
+        else {
+            *main::exit = $cref;
+        }
     }
-  }
 }
 
 use POSIX qw/setuid setgid setsid/;
 
-if( $redefine_exit ){
-  use subs qw/exit/ ;
+if ($redefine_exit) {
+    use subs qw/exit/;
 }
-
-
 
 defined( my $pid = fork ) or die "Forking logger: $!";
-if( $pid ){
-  if( defined $pid_file ){
-    open( my $pid_fh, ">", $pid_file ) or die "Writing $pid_file: $!";
-    print $pid_fh "$pid\n"; close $pid_fh;
-  }
-  if( $no_detach ){
-    map{ my $signal = $_; $SIG{ $signal } = sig_handle( $signal, $pid );
-    } qw/INT HUP TERM/;
-    waitpid( $pid, 0 );
-  }
-  CORE::exit;
+if ($pid) {
+    if ( defined $pid_file ) {
+        open( my $pid_fh, ">", $pid_file ) or die "Writing $pid_file: $!";
+        print $pid_fh "$pid\n";
+        close $pid_fh;
+    }
+    if ($no_detach) {
+        map {
+            my $signal = $_;
+            $SIG{$signal} = sig_handle( $signal, $pid );
+        } qw/INT HUP TERM/;
+        waitpid( $pid, 0 );
+    }
+    CORE::exit;
 }
 
-
-unless( $no_detach ){
-  re_open_log $log_file;
-  $SIG{ USR1 } = sub{ re_open_log( $log_file ); };
+unless ($no_detach) {
+    re_open_log $log_file;
+    $SIG{USR1} = sub { re_open_log($log_file); };
 }
 
 my $conf = FCGI::Spawn::ConfigFile->new();
-my $gid = getgrnam( $group ); die "Get group $group: $!" if $gid == 0;
-my $uid = getpwnam( $user ); die "Get user $user: $!" if $uid == 0;
+my $gid  = getgrnam($group);
+die "Get group $group: $!" if $gid == 0;
+my $uid = getpwnam($user);
+die "Get user $user: $!" if $uid == 0;
 
-if( $time_limit ){
-  $conf->pid_callouts( init_pid_callouts_share( {
-        mm_size => $mm_size, mm_file => $mm_file, uid => $uid,
-      }
-    )
-  );
-  $conf->time_limit( $time_limit );
+if ($time_limit) {
+    $conf->pid_callouts(
+        init_pid_callouts_share(
+            {   mm_size => $mm_size,
+                mm_file => $mm_file,
+                uid     => $uid,
+            }
+        )
+    );
+    $conf->time_limit($time_limit);
 }
 
 defined( my $spawn_pid = fork ) or die "Forking spawn: $!";
-if( $spawn_pid ){
-  $SIG{ CHLD } = 'IGNORE';
-  map{ my $signal = $_; $SIG{ $signal } = sig_handle( $signal, $spawn_pid );
-  } qw/INT HUP TERM/;
-  $0 = 'fcgi_spawn';
-  if( $time_limit ){
-    while( kill 0 => $spawn_pid ){
-      my $pid_callouts = $conf->pid_callouts;
-      foreach my $pid ( keys %$pid_callouts){
-        my $longtitude = time - $pid_callouts->{ $pid };
-        if( $longtitude >= $time_limit ){
-          if( $soft_tl ){
-            kill 'TERM' => $pid;
-            sleep $soft_tl if kill 0 => $pid;
-          }
-          kill( 'KILL' => $pid ) if kill 0 => $pid;
-          delete $pid_callouts->{ $pid };
+if ($spawn_pid) {
+    $SIG{CHLD} = 'IGNORE';
+    map {
+        my $signal = $_;
+        $SIG{$signal} = sig_handle( $signal, $spawn_pid );
+    } qw/INT HUP TERM/;
+    $0 = 'fcgi_spawn';
+    if ($time_limit) {
+        while ( kill 0 => $spawn_pid ) {
+            my $pid_callouts = $conf->pid_callouts;
+            foreach my $pid ( keys %$pid_callouts ) {
+                my $longtitude = time - $pid_callouts->{$pid};
+                if ( $longtitude >= $time_limit ) {
+                    if ($soft_tl) {
+                        kill 'TERM' => $pid;
+                        sleep $soft_tl if kill 0 => $pid;
+                    }
+                    kill( 'KILL' => $pid ) if kill 0 => $pid;
+                    delete $pid_callouts->{$pid};
+                }
+            }
+            sleep 1;
         }
-      }
-      sleep 1;
     }
-  } else {
-    my $rv;
-    do{
-      $rv = waitpid $spawn_pid, 0;
-    } while $rv <= 0;
-  }
-  unlink $pid_file if defined $pid_file;
-  CORE::exit;
+    else {
+        my $rv;
+        do {
+            $rv = waitpid $spawn_pid, 0;
+        } while $rv <= 0;
+    }
+    unlink $pid_file if defined $pid_file;
+    CORE::exit;
 }
 
-%ENV=();
+%ENV = ();
 
-$conf->read_fsp_config( $config_path );
+$conf->read_fsp_config($config_path);
 
-eval { require FCGI::Spawn; import FCGI::Spawn;
-1; } or die $!;
+eval {
+    require FCGI::Spawn;
+    import FCGI::Spawn;
+    1;
+} or die $!;
 
 my $spawn = FCGI::Spawn->new( $conf, )
-  or die "$@ $!";
+    or die "$@ $!";
 
-if( defined( $conf->{ chroot_path } ) ){
-  chroot( $conf->{ chroot_path } ) or die "$@ $!";
+if ( defined( $conf->{chroot_path} ) ) {
+    chroot( $conf->{chroot_path} ) or die "$@ $!";
 }
 
-setgid( $gid ); $) = "$gid $gid"; $( = $gid; die "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
-setuid( $uid ); $> = $uid; $< = $uid; die "Set user $user($uid): $!" if ( $< != $uid ) or ( $> != $uid );
+setgid($gid);
+$) = "$gid $gid";
+$( = $gid;
+die "Set group $group($gid): $!" if ( $( != $gid ) or ( $) != $gid );
+setuid($uid);
+$> = $uid;
+$< = $uid;
+die "Set user $user($uid): $!" if ( $< != $uid ) or ( $> != $uid );
 
 setsid or die "Setting session: $!";
 
 my $preloaders = { nonprepared => [], prepared => [], };
-if( $preload ){
-  FCGI::Spawn::ModPerl->new if $spawn->{ mod_perl };
-  opendir( my $preloaders_dh, $config_path ) or die "Opening path $config_path: $!";
-  while( my $fn = readdir $preloaders_dh ){
-    next if grep { $_ eq $fn } qw/. ../;
-    my $full_fn = join '/', $config_path, $fn;
-    next unless -f $full_fn;
-    push( @{ $preloaders->{ nonprepared  } }, $full_fn ) if $fn =~ /^preload_nonprepared_\d+\.pl$/;
-    push( @{ $preloaders->{ prepared  } },     $full_fn ) if $fn =~ /^preload_prepared_\d+\.pl$/;
-  }
-  closedir $preloaders_dh;
+if ($preload) {
+    FCGI::Spawn::ModPerl->new if $spawn->{mod_perl};
+    opendir( my $preloaders_dh, $config_path )
+        or die "Opening path $config_path: $!";
+    while ( my $fn = readdir $preloaders_dh ) {
+        next if grep { $_ eq $fn } qw/. ../;
+        my $full_fn = join '/', $config_path, $fn;
+        next unless -f $full_fn;
+        push( @{ $preloaders->{nonprepared} }, $full_fn )
+            if $fn =~ /^preload_nonprepared_\d+\.pl$/;
+        push( @{ $preloaders->{prepared} }, $full_fn )
+            if $fn =~ /^preload_prepared_\d+\.pl$/;
+    }
+    closedir $preloaders_dh;
 
-  map{
-    $preloaders->{ $_  } = [
-      map{
-        my $str = '';
-        open( my $preloader_fh, "<", $_ ) or die "Open $_: $!";
-        while( <$preloader_fh> ){
-          $str .= $_;
+    map {
+        $preloaders->{$_} = [
+            map {
+                my $str = '';
+                open( my $preloader_fh, "<", $_ ) or die "Open $_: $!";
+                while (<$preloader_fh>) {
+                    $str .= $_;
+                }
+                close $preloader_fh;
+                $str;
+                } sort {
+                my ( $anum, $bnum ) = map {
+                    my $c = $_;
+                    $c =~ s/[^\d]//g;
+                    $c;
+                } ( $a, $b );
+                $anum <=> $bnum;
+                } @{ $preloaders->{$_} }
+        ];
+    } keys %$preloaders;
+
+    map { @{ $preloaders->{$_} } = sort @{ $preloaders->{$_} }; }
+        keys %$preloaders;
+    map {
+
+        # TBD: Try::Tiny
+        eval "$_ ; 1;"    ## no critic
+            or die "$_\n $@ $!";
+    } @{ $preloaders->{nonprepared} };
+
+}
+
+$spawn->prepare;
+
+if ($preload) {
+    map {
+
+        # TBD: Try::Tiny
+        eval $_;          ## no critic
+        if ($@) {
+            warn "$@\nterminating PM pid $spawn_pid";
+            kill 'TERM', $spawn_pid;
+            waitpid $spawn_pid, 0;
+            die $@;       # should not happen;
         }
-        close $preloader_fh;
-        $str;
-      } sort {
-        my( $anum, $bnum ) = map{
-          my $c = $_; $c =~ s/[^\d]//g;
-          $c;
-        } ( $a, $b );
-        $anum <=> $bnum;
-      } @{ $preloaders->{ $_  } }
-    ];
-  } keys %$preloaders;
-
-  map{ @{ $preloaders->{ $_ } } = sort @{ $preloaders->{ $_ } } ;
-  } keys %$preloaders;
-  map{
-    # TBD: Try::Tiny
-    eval "$_ ; 1;" ## no critic
-    or die "$_\n $@ $!";
-  } @{ $preloaders->{ nonprepared } };
-
+    } @{ $preloaders->{prepared} };
 }
 
-$spawn -> prepare;
-
-
-if( $preload ){
-  map{
-      # TBD: Try::Tiny
-      eval $_; ## no critic
-      if( $@ ){
-        warn "$@\nterminating PM pid $spawn_pid";
-        kill 'TERM', $spawn_pid;
-        waitpid $spawn_pid, 0;
-        die $@; # should not happen;
-      }
-  } @{ $preloaders->{ prepared } };
-}
-
-$spawn -> spawn;
+$spawn->spawn;
 
 1;
