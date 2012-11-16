@@ -5,8 +5,6 @@
 # General Public License, Version 2.1, a copy of which can be
 # found in the "COPYING" file of this distribution.
 
-# $Vereshagin$
-
 require 5.004;
 use strict;
 use warnings;
