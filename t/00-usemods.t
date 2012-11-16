@@ -12,7 +12,7 @@ use warnings;
 ### MODULES ###
 #
 # Makes this test a test
-use Test::Most qw/bail/;    # BAIL_OUT() on any failure
+# use Test::Most qw/bail/;    # BAIL_OUT() on any failure
 
 # Test strictures
 use Test::Strict;
@@ -31,26 +31,14 @@ use Test::Strict;
 # (Enter constant description here)
 # const my $SOME_CONST => 1;
 
+# Test for 'use warnings;', too
+$Test::Strict::TEST_WARNINGS = 1;
+
 ### MAIN ###
-# Require   :   Test::Most
+# Require   :   Test::Strict
 #
-
-# TODO Requires Apache::Fake unreleased yet
-# require_ok 'FCGI::Spawn::ModPerl';
-
 # Check loadability of the every module
-use_ok $_
-    foreach qw{FCGI::Spawn::BinUtils FCGI::Spawn::ConfigFile FCGI::Spawn};
-
-# XXX With Apache::Fake dependency, make all_perl_files_ok() in next
-# release, this includes FCGI::Spawn::ModPerl
-foreach my $modname ( map( { s!::!/!g; "lib/$_.pm" }
-        @{[ qw{FCGI::Spawn::BinUtils FCGI::Spawn::ConfigFile FCGI::Spawn} ]}
-    ), 'bin/fcgi_spawn') {
-    syntax_ok( $modname );
-    strict_ok( $modname );
-    warnings_ok( $modname );
-}
+all_perl_files_ok()
 
 # Continues till this point
-done_testing();
+# done_testing();

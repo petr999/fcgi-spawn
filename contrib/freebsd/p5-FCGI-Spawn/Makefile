@@ -20,7 +20,8 @@ PERL_CONFIGURE=	yes
 
 USE_RC_SUBR+= fcgi_spawn
 
-MAN3=		FCGI::Spawn.3
+MAN3=		FCGI::Spawn.3 \
+		FCGI::Spawn::BinUtils.3
 MAN1=		fcgi_spawn.1
 
 OPTIONS=  MYSQL   "MySQL dependency to run on RC start"         off \
@@ -43,11 +44,10 @@ SUB_LIST+=	PGSQL=
 .endif
 
 post-install:
-	${ECHO} ${WITH_MYSQL} ${SUB_LIST}
 	@${MKDIR} ${PREFIX}/etc/fcgi_spawn
 	@${INSTALL_DATA} ${WRKSRC}/fcgi_spawn.conf.sample ${PREFIX}/etc/fcgi_spawn
 	@${MKDIR} ${PREFIX}/share/doc/${PKGNAMEPREFIX}${PORTNAME}
-	@${INSTALL_DATA} ${WRKSRC}/README ${WRKSRC}/Bugzilla.CGI.pm.fcgi.spawn.patch ${WRKSRC}/CGI.pm.fcgi.spawn.patch \
+	@${INSTALL_DATA} ${WRKSRC}/README \
 		${PREFIX}/share/doc/${PKGNAMEPREFIX}${PORTNAME}
 	@${CAT} ${PKGMESSAGE}
 

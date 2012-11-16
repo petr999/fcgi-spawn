@@ -7,10 +7,7 @@ bin/fcgi_spawn
 fcgi_spawn.conf.sample
 lib/FCGI/Spawn.pm
 lib/FCGI/Spawn/BinUtils.pm
-lib/FCGI/Spawn/ConfigFile.pm
-lib/FCGI/Spawn/ModPerl.pm
 t/00-usemods.t
-t/06-configfile.t
 t/10-binutils-private.t
 t/15-binutils-public.t
 xt/release/cpan-changes.t

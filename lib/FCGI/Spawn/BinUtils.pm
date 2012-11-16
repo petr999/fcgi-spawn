@@ -3,7 +3,7 @@ package FCGI::Spawn::BinUtils;
 use strict;
 use warnings;
 
-use base 'Exporter';    # FIXME Perl6::Export::Attrs
+# use base 'Exporter';    # FIXME Perl6::Export::Attrs
 
 use English qw/$UID $EUID $GID $EGID/;
 
@@ -12,9 +12,9 @@ use Carp;
 # Contains 'setuid' and 'setgid' subs
 require POSIX; # No import cause it's too much
 
-our @EXPORT_OK = qw/init_pid_callouts_share sig_handle re_open_log get_fork_rv
-    get_shared_scalar
-    /;
+# our @EXPORT_OK = qw/init_pid_callouts_share sig_handle re_open_log get_fork_rv
+#     get_shared_scalar
+#     /;
 
 my $ipc;
 
