@@ -9,11 +9,12 @@
 
 require 5.004;
 use strict;
+use warnings;
 use ExtUtils::MakeMaker;
 
 WriteMakefile
   (NAME         => 'FCGI::Spawn',
-   VERSION_FROM => 'Spawn.pm',   # finds $VERSION
+   VERSION_FROM => 'lib/FCGI/Spawn.pm',   # finds $VERSION
    DISTNAME     => 'FCGI-Spawn',
    ($] >= 5.005 ?
     (	ABSTRACT  => 'FastCGI server for CGI-like applications multiprocessing',
