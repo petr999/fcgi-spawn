@@ -6,7 +6,7 @@ use warnings;
 use vars qw($VERSION);
 
 BEGIN {
-    $VERSION = '0.16.1';
+    $VERSION = '0.16.2';
     no warnings 'once';    # keep from '$Default only once'
     $FCGI::Spawn::Default = 'FCGI::Spawn';
 }
