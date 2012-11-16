@@ -1,13 +1,15 @@
-#!/usr/bin/perl
-
 package FCGI::Spawn::BinUtils;
 
 use strict;
 use warnings;
 
-use English qw/$UID/;
-
 use base 'Exporter'; # FIXME Perl6::Export::Attrs
+
+use English qw/$UID $EUID $GID $EGID/;
+
+use Carp;
+
+use POSIX qw/setgid setuid/;
 
 our @EXPORT_OK = qw/init_pid_callouts_share sig_handle re_open_log get_fork_rv
                     get_shared_scalar
@@ -60,6 +62,52 @@ sub re_open_log {
   open STDIN, "<", '/dev/null'   or die "Can't read /dev/null: $!";
 }
 
+# Function
+# Sets user and group of the current process
+# Takes     :   Int user id, Int group id
+# Requires  :   English, Carp modules
+# Changes   :   user and group of the current process
+# Throws    :   If user and group of the current process were not set
+# Returns   :   n/a
+sub set_uid_gid {
+    my ( $user_id => $group_id ) = @_;
+
+    # Set group id
+    _set_group_id( $group_id );
+    croak( "Group id $group_id was not set!" )
+        unless  ( $GID == $group_id ) and ( $EGID == $group_id );
+
+    # Set user id
+    _set_user_id( $user_id );
+    croak( "User id $user_id was not set!" )
+        unless  ( $UID == $user_id ) and ( $> == $user_id );
+
+}
+
+# Function
+# Sets user and group of the current process
+# Takes     :   n/a
+# Requires  :   POSIX module
+# Changes   :   user of the current process
+# Returns   :   n/a
+sub _set_user_id {
+    my $user_id = shift;
+
+    setuid( $user_id ); $UID = $user_id; $EUID = $user_id; 
+}
+
+# Function
+# Sets group of the current process
+# Takes     :   n/a
+# Requires  :   POSIX module
+# Changes   :   group of the current process
+# Returns   :   n/a
+sub _set_group_id {
+    my $group_id = shift;
+
+    setgid( $group_id ); $GID = $group_id; $EGID = "$group_id $group_id"; 
+}
+
 # These below are for tests
 
 sub get_shared_scalar {
@@ -77,3 +125,19 @@ sub get_fork_rv {
 }
 
 1;
+
+__END__
+
+=pod
+
+=head1 SUBROUTINES/METHODS
+
+=head2 C<set_uid_gid( Int $user_id => Int $group_id );>
+
+Sets user id and group id of the current process. Throws if they were not
+set.
+
+Returns: n/a
+
+=cut
+
