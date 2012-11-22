@@ -11,3 +11,4 @@ t/00-usemods.t
 t/10-binutils-private.t
 t/15-binutils-public.t
 xt/release/cpan-changes.t
+META.yml                                 Module meta-data (added by MakeMaker)
