@@ -29,3 +29,9 @@ Revision history for Perl module FCGI::Spawn.
     - Ticket: 11 (ae6fa1bc-dca4-5c40-a84b-3c3db7ad7a0f) [CPAN RT #72408]
  should use '$) = "$gid $gid";' instead of '$) = $gid;'
  Thanks: John Lightsey <john@nixnuts.net>
+
+0.16.4 Fri Nov 23 15:35:31 MSK 2012
+
+    - Ticket: 17 (baf0a7a2-15d1-42b4-9fee-24b13b208c36)
+ Test::Strict and Test::Most are added to the dependencies (EU::MM's
+ Makefile.PL)
