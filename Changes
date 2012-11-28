@@ -35,3 +35,17 @@ Revision history for Perl module FCGI::Spawn.
     - Ticket: 17 (baf0a7a2-15d1-42b4-9fee-24b13b208c36)
  Test::Strict and Test::Most are added to the dependencies (EU::MM's
  Makefile.PL)
+
+
+0.16.5 Wed Nov 28 19:49:48 MSK 2012
+
+    - Ticket: 19 (0c755c6f-ea00-4f03-9e8b-dd61a93ea55b)
+
+    - Missed FCGI.pm  and Const::Fast from dependencies:
+ (http://www.cpantesters.org/cpan/report/f9b413e4-35f9-11e2-a2f1-82091a5d253f)
+
+    - 'Can't locate FCGI.pm in @INC (@INC contains: ...) at
+ /home/cpan/pit/thr/perl-5.14.3/lib/5.14.3/CGI/Fast.pm line 25.'
+
+    - 'Can't locate Const/Fast.pm in @INC (@INC contains: ... .) at
+ t/15-binutils-public.t line 33.

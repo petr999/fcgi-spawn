@@ -28,5 +28,7 @@ WriteMakefile(
         'FCGI::ProcManager' => 0,
         'Test::Strict'      => 0,
         'Test::Most'        => 0,
+        'Const::Fast'       => 0,
+        'FCGI'              => 0,
     },
 );
