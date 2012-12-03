@@ -36,7 +36,6 @@ Revision history for Perl module FCGI::Spawn.
  Test::Strict and Test::Most are added to the dependencies (EU::MM's
  Makefile.PL)
 
-
 0.16.5 Wed Nov 28 19:49:48 MSK 2012
 
     - Ticket: 19 (0c755c6f-ea00-4f03-9e8b-dd61a93ea55b)
@@ -49,3 +48,13 @@ Revision history for Perl module FCGI::Spawn.
 
     - 'Can't locate Const/Fast.pm in @INC (@INC contains: ... .) at
  t/15-binutils-public.t line 33.
+
+0.16.6 Mon Dec  3 12:03:05 MSK 2012
+
+    - Ticket: 23 (060a80c7-c75b-4520-ac49-7520ea6dbcb0)
+
+        - Tests pass with perl-5.8.9:
+
+            - t/10-binutils-private.t
+
+            - t/15-binutils-public.t

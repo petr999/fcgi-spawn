@@ -33,10 +33,14 @@ use Test::Exception;
 use Const::Fast;
 
 # User id to switch to for tests
-const my $TEST_USER_ID => $ENV{'TEST_USER_ID'} // 12345;
+const my $TEST_USER_ID => defined( $ENV{'TEST_USER_ID'} )
+    ? $ENV{'TEST_USER_ID'}
+    : 12345;
 
 # Group id to switch to for tests
-const my $TEST_GROUP_ID => $ENV{'TEST_GROUP_ID'} // 12345;
+const my $TEST_GROUP_ID => defined( $ENV{'TEST_GROUP_ID'} )
+    ? $ENV{'TEST_GROUP_ID'}
+    : 12345;
 
 ### MAIN ###
 # Require   :   Test::Most, Test::Exception, English, FCGI::Spawn::BinUtils,

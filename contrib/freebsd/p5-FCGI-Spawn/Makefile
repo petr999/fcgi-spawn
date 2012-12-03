@@ -1,12 +1,12 @@
 # New ports collection makefile for:	p5-FCGI-Spawn
 # Date created:		2007-12-28
-# Whom:			Peter <peter@vereshagin.org>
+# Whom:		        Peter Vereshagin <peter@vereshagin.org>
 #
-# $FreeBSD: ports/www/p5-FCGI-Spawn/Makefile,v 1.6 2010/04/14 13:48:02 skreuzer Exp $
+# $FreeBSD$
 #
 
 PORTNAME=	FCGI-Spawn
-PORTVERSION=	0.16.5
+PORTVERSION=	0.16.6
 CATEGORIES=	www perl5
 MASTER_SITES=	CPAN
 PKGNAMEPREFIX=	p5-
