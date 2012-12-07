@@ -27,6 +27,9 @@ use_ok('FCGI::Spawn::BinUtils');
 # Handles exceptions
 use Test::Exception;
 
+# Concatenates directories
+use File::Spec;
+
 ### CONSTANTS ###
 #
 # Makes constants possible
@@ -42,10 +45,21 @@ const my $TEST_GROUP_ID => defined( $ENV{'TEST_GROUP_ID'} )
     ? $ENV{'TEST_GROUP_ID'}
     : 12345;
 
+# Socket name to check for unexistence
+# Requires  :   File::Spec
+const my $SPAWNER_SOCK => File::Spec->catfile( '', 'tmp' => 'spawner.sock' );
+
 ### MAIN ###
 # Require   :   Test::Most, Test::Exception, English, FCGI::Spawn::BinUtils,
 #               POSIX modules
 #
+# Check for default socket name file to not exist or for being removed
+plan( 'skip_all' =>
+          "The file '$SPAWNER_SOCK' exists and can not be removed: '$!'. "
+        . " Please remove this file before running these tests.", )
+    if ( -e $SPAWNER_SOCK )
+    and not( unlink $SPAWNER_SOCK );
+
 # Catch exception
 lives_and {
 
