@@ -58,3 +58,25 @@ Revision history for Perl module FCGI::Spawn.
             - t/10-binutils-private.t
 
             - t/15-binutils-public.t
+
+0.16.7 Fri Dec  7 13:32:39 MSK 2012
+
+    - Ticket: 26 (b34f99d3-13f7-4383-84aa-b7d79c89e1b3)
+
+        - Report:
+ http://www.cpantesters.org/cpan/report/26c33b00-3dc8-11e2-ac74-1fb6836e7670
+
+            - 'Exists /tmp/spawner.sock: not a socket or unremoveable at
+ /export/home/cpantest/.cpan/build/FCGI-Spawn-0.16.6-RVzJh7/t/../lib/FCGI/\
+ Spawn.pm line 435.'
+
+        - Every tests plans a 'skip all' against this non-sense situation.
+
+    - Ticket: 26 (b34f99d3-13f7-4383-84aa-b7d79c89e1b3)
+
+        - CGI::Fast dependency
+
+            - Report:
+ http://www.cpantesters.org/cpan/report/051c492c-3ece-11e2-896b-16ee30b64f85
+
+            - Add CGI::Fast for EU::MM

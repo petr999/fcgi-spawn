@@ -7,7 +7,7 @@
 . /etc/rc.subr
 
 name="fcgi_spawn"
-rcvar=fcgi_spawn_enable
+rcvar=${name}_enable
 
 fcgi_spawn_enable=${fcgi_spawn_enable:-"NO"}
 pidfile=${fcgi_spawn_pid:-"/var/run/${name}.pid"}
