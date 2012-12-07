@@ -3,7 +3,7 @@ package FCGI::Spawn;
 use vars qw($VERSION);
 
 BEGIN {
-    $VERSION              = '0.16.6';
+    $VERSION              = '0.16.7';
     $FCGI::Spawn::Default = 'FCGI::Spawn';
 }
 

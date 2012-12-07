@@ -30,5 +30,6 @@ WriteMakefile(
         'Test::Most'        => 0,
         'Const::Fast'       => 0,
         'FCGI'              => 0,
+        'CGI::Fast'         => 0,
     },
 );
